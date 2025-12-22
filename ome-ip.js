@@ -1,0 +1,213 @@
+// ==UserScript==
+// @name         Ome.tv IP Geolocation (v2.13 - Formatting Reverted)
+// @license      MIT License
+// @namespace    https://github.com/EolnMsuk/ome-ip
+// @version      2.13
+// @description  Stealth, Dark Mode, Draggable, Resizable, Country First, Standard Text
+// @author       EolnMsuk
+// @match        https://ome.tv/*
+// @match        https://www.ome.tv/*
+// @match        http://ome.tv/*
+// @match        http://www.ome.tv/*
+// @grant        GM_xmlhttpRequest
+// @run-at       document-start
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // 1. UI: Create the Floating Log Box
+    function createLogWindow() {
+        if (document.getElementById("ip-log-window")) return;
+        
+        var logContainer = document.createElement("div");
+        logContainer.id = "ip-log-window";
+        logContainer.style.position = "fixed";
+        logContainer.style.top = "120px";
+        logContainer.style.left = "10px";
+        
+        // --- RESIZE SETTINGS ---
+        logContainer.style.width = "280px";       
+        logContainer.style.minWidth = "200px";    
+        logContainer.style.minHeight = "100px";
+        logContainer.style.resize = "both";       
+        logContainer.style.overflow = "hidden";   
+        
+        // Appearance
+        logContainer.style.padding = "15px"; 
+        logContainer.style.backgroundColor = "rgba(0,0,0,0.6)"; 
+        logContainer.style.color = "#00FF00";
+        logContainer.style.zIndex = "999999";
+        logContainer.style.fontSize = "16px"; 
+        logContainer.style.fontWeight = "bold"; 
+        logContainer.style.fontFamily = "monospace";
+        
+        logContainer.style.borderRadius = "12px"; 
+        logContainer.style.border = "1px solid #444";
+        logContainer.style.backdropFilter = "blur(5px)"; 
+        logContainer.style.cursor = "move"; 
+        logContainer.style.boxShadow = "0 4px 15px rgba(0,0,0,0.5)";
+        
+        var content = document.createElement("div");
+        content.id = "ip-content-area";
+        content.innerHTML = "<span style='color:#ccc;'>📍 Waiting for partner...</span>";
+        content.style.pointerEvents = "none"; 
+        logContainer.appendChild(content);
+
+        document.body.appendChild(logContainer);
+
+        // --- SMART DRAG LOGIC ---
+        let isDragging = false;
+        let offsetX, offsetY;
+
+        logContainer.addEventListener('mousedown', function(e) {
+            // Check if clicking text (allow selection)
+            if (e.target.tagName !== "B" && e.target.tagName !== "SPAN" && e.target.tagName !== "DIV") {
+                 e.preventDefault(); 
+            }
+
+            // Check if clicking resize handle (bottom-right 20px)
+            if (e.offsetX > logContainer.offsetWidth - 20 && e.offsetY > logContainer.offsetHeight - 20) {
+                return; 
+            }
+
+            isDragging = true;
+            offsetX = e.clientX - logContainer.offsetLeft;
+            offsetY = e.clientY - logContainer.offsetTop;
+            logContainer.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                logContainer.style.left = (e.clientX - offsetX) + 'px';
+                logContainer.style.top = (e.clientY - offsetY) + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+            logContainer.style.cursor = 'move';
+        });
+    }
+
+    // 2. STYLE: Inject Complete Dark Theme
+    function customizeChatTheme() {
+        var style = document.createElement('style');
+        style.type = 'text/css';
+        style.innerHTML = `
+            body, html, #roulette, .roulette-box, .chat-container, .chat, .buttons, .chat__body, .chat__messages {
+                background-color: #000000 !important;
+            }
+            .message-bubble {
+                background-color: #111111 !important; 
+                border: 1px solid #333 !important; 
+                color: #ffffff !important;         
+            }
+            .message.system .message-bubble {
+                color: #aaaaaa !important;
+            }
+            .message-report-link {
+                color: #ff5555 !important;
+            }
+            .chat__textarea, #chat-text, .chat__textfield {
+                background-color: #000000 !important;
+                color: #ffffff !important;
+                border: 1px solid #333 !important;
+            }
+            .chat__textarea::placeholder {
+                color: #666 !important;
+            }
+            .buttons__wrapper {
+                background-color: #000000 !important;
+                border-top: 1px solid #222 !important;
+            }
+            .country-filter-popup, .gender-selector__popup {
+                background-color: #111111 !important;
+                border: 1px solid #444 !important;
+                color: #ffffff !important;
+            }
+            .country-filter-popup__country, .gender-selector__popup-item {
+                color: #cccccc !important;
+            }
+            .country-filter-popup__country:hover, .gender-selector__popup-item:hover {
+                background-color: #333333 !important;
+                color: #ffffff !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 3. HELPER: Standard HTML Escaping (No extra formatting)
+    function safe(str) {
+        if (!str) return "Unknown";
+        // Just prevents code injection, displays symbols as they are
+        return String(str)
+            .replace(/&/g, "&amp;") 
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    // 4. Helper to Overwrite Message
+    var updateMessage = function(htmlContent) {
+        var contentArea = document.getElementById("ip-content-area");
+        if (contentArea) {
+            contentArea.innerHTML = htmlContent;
+        }
+    };
+
+    // 5. LOGIC: Stealth Hook
+    const nativeAddIceCandidate = window.RTCPeerConnection.prototype.addIceCandidate;
+    window.RTCPeerConnection.prototype.addIceCandidate = function(iceCandidate, ...args) {
+        if (iceCandidate && iceCandidate.candidate) {
+            const fields = iceCandidate.candidate.split(" ");
+            if (fields[7] === "srflx") {
+                const ip = fields[4];
+                getLocation(ip);
+            }
+        }
+        return nativeAddIceCandidate.apply(this, [iceCandidate, ...args]);
+    };
+
+    // 6. API: BYPASS CORS using GM_xmlhttpRequest
+    var getLocation = function(ip) {
+        updateMessage(`<span style='color:yellow'>Fetching info for ${ip}...</span>`);
+        
+        GM_xmlhttpRequest({
+            method: "GET",
+            url: `https://ipwho.is/${ip}`,
+            onload: function(response) {
+                try {
+                    var json = JSON.parse(response.responseText);
+                    if (json.success) {
+                        const output = `
+                        <div style="line-height: 1.6; text-shadow: 1px 1px 2px black;">
+                            <span style="color:#777777;">${safe(json.country)}</span><br>
+                            <span style="color:#DDDDDD;">${safe(json.city)}, ${safe(json.region)}</span><br>
+                            <span style="color:#33CCFF;">${safe(json.connection.isp)}</span><br>
+                            <span style="color:#00FF00;">${safe(json.ip)}</span>
+                        </div>`;
+                        updateMessage(output);
+                    } else {
+                        updateMessage(`<span style='color:red'>Private/Local IP</span>`);
+                    }
+                } catch (e) {
+                    updateMessage(`<span style='color:red'>Data Parse Error</span>`);
+                }
+            },
+            onerror: function(error) {
+                updateMessage(`<span style='color:red'>Connection Blocked</span>`);
+            }
+        });
+    };
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", function() {
+            createLogWindow();
+            customizeChatTheme();
+        });
+    } else {
+        createLogWindow();
+        customizeChatTheme();
+    }
+})();
