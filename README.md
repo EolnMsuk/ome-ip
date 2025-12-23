@@ -1,6 +1,6 @@
 # ome-ip
 
-![Version](https://img.shields.io/badge/version-1.2-blue)
+![Version](https://img.shields.io/badge/version-1.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 **ome-ip** is a userscript (Tampermonkey/Violentmonkey) designed to enhance the experience on Ome.tv, Chatroulette, and similar random video chat platforms. It provides a stealthy overlay displaying your chat partner's geolocation details, applies a sleek dark theme, and bypasses client-side face detection restrictions.
