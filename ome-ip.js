@@ -2,7 +2,7 @@
 // @name         ome-ip
 // @license      MIT License
 // @namespace    https://github.com/EolnMsuk/ome-ip
-// @version      1.0
+// @version      1.1
 // @description  ome.tv + more privacy and info extension
 // @author       $eolnmsuk
 // @match        https://ome.tv/*
@@ -213,6 +213,39 @@
         });
     };
 
+    // 7. BYPASS: Face Detection Worker Hook
+    const nativeWorker = window.Worker;
+    window.Worker = function(scriptURL, options) {
+        const urlString = String(scriptURL);
+
+        // Check for known vision/face detection scripts
+        if (urlString.includes('vision') || urlString.includes('face') || urlString.includes('wasm')) {
+            console.log("OME-IP: Intercepting Vision/Face Worker ->", urlString);
+
+            // Create a dummy worker that just says "Yes, I see a face"
+            const dummyWorkerCode = `
+                self.onmessage = function(e) {
+                    // Respond to any message with a "success" or fake face data
+                    self.postMessage({
+                        action: 'faceDetections',
+                        faces: [{x:0.5, y:0.5, width:0.5, height:0.5}],
+                        detected: 1
+                    });
+                };
+            `;
+
+            // Convert code string to a Blob so it can be loaded as a Worker
+            const blob = new Blob([dummyWorkerCode], { type: 'application/javascript' });
+            const blobURL = URL.createObjectURL(blob);
+
+            return new nativeWorker(blobURL, options);
+        }
+
+        // Return standard worker for everything else
+        return new nativeWorker(scriptURL, options);
+    };
+
+    // Initialize UI on load
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", function() {
             createLogWindow();
