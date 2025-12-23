@@ -3,12 +3,13 @@
 ![Version](https://img.shields.io/badge/version-1.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**ome-ip** is a userscript (Tampermonkey/Violentmonkey) designed to enhance the experience on Ome.tv, Chatroulette, and similar random video chat platforms. It provides a stealthy overlay displaying your chat partner's geolocation details and applies a sleek dark theme to the interface.
+**ome-ip** is a userscript (Tampermonkey/Violentmonkey) designed to enhance the experience on Ome.tv, Chatroulette, and similar random video chat platforms. It provides a stealthy overlay displaying your chat partner's geolocation details, applies a sleek dark theme, and bypasses client-side face detection restrictions.
 
 ## 🚀 Features
 
 * **📍 IP Geolocation:** Automatically intercepts WebRTC connection attempts to extract the partner's IP address.
 * **🌍 Detailed Info:** Fetches and displays Country, Region, City, and ISP using the `ip-api.com` database.
+* **🤖 Face Detection Bypass:** Intercepts and mocks facial recognition background workers (WebWorkers) to prevent "Face not found" errors or black screens.
 * **🎨 Dark Mode:** Injects a custom CSS dark theme to replace the bright default interfaces of supported sites.
 * **🖼️ Draggable UI:** Information is displayed in a floating, semi-transparent box that can be dragged and resized anywhere on the screen.
 * **⚡ Cross-Platform:** Works on multiple Ome.tv clones and alternatives.
@@ -42,6 +43,7 @@ You need a userscript manager installed in your browser:
 1.  **WebRTC Hook:** The script overrides the browser's native `RTCPeerConnection` method. When a video chat connects, the browser exchanges "ICE Candidates" to establish a direct path.
 2.  **Extraction:** The script silently listens for candidates tagged as `srflx` (Server Reflexive), which contain the public IP address of the remote peer.
 3.  **API Query:** It uses `GM_xmlhttpRequest` to bypass Cross-Origin Resource Sharing (CORS) restrictions and queries the IP against a geolocation database.
+4.  **Worker Interception:** The script wraps the global `window.Worker` constructor. It detects attempts to load facial recognition scripts (checking for keywords like 'vision', 'face', or 'wasm') and substitutes them with a dummy worker that always reports a detected face.
 
 ## ⚠️ Disclaimer
 
