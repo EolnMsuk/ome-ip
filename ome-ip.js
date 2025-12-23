@@ -2,7 +2,7 @@
 // @name         ome-ip
 // @license      MIT License
 // @namespace    https://github.com/EolnMsuk/ome-ip
-// @version      1.1
+// @version      1.3
 // @description  ome.tv + more privacy and info extension
 // @author       $eolnmsuk
 // @match        https://ome.tv/*
