@@ -1,14 +1,20 @@
 // ==UserScript==
-// @name         Ome.tv IP Geolocation (v2.13 - Formatting Reverted)
+// @name         ome-ip
 // @license      MIT License
 // @namespace    https://github.com/EolnMsuk/ome-ip
-// @version      2.13
-// @description  Stealth, Dark Mode, Draggable, Resizable, Country First, Standard Text
-// @author       EolnMsuk
+// @version      1.0
+// @description  ome.tv + more privacy and info extension
+// @author       $eolnmsuk
 // @match        https://ome.tv/*
 // @match        https://www.ome.tv/*
-// @match        http://ome.tv/*
-// @match        http://www.ome.tv/*
+// @match        https://omegleapp.me/*
+// @match        https://www.omegleapp.me/*
+// @match        https://chatroulette.com/*
+// @match        https://www.chatroulette.com/*
+// @match        https://monkey.app/*
+// @match        https://www.monkey.app/*
+// @match        https://umingle.com/*
+// @match        https://www.umingle.com/*
 // @grant        GM_xmlhttpRequest
 // @run-at       document-start
 // ==/UserScript==
@@ -19,39 +25,39 @@
     // 1. UI: Create the Floating Log Box
     function createLogWindow() {
         if (document.getElementById("ip-log-window")) return;
-        
+
         var logContainer = document.createElement("div");
         logContainer.id = "ip-log-window";
         logContainer.style.position = "fixed";
         logContainer.style.top = "120px";
         logContainer.style.left = "10px";
-        
+
         // --- RESIZE SETTINGS ---
-        logContainer.style.width = "280px";       
-        logContainer.style.minWidth = "200px";    
+        logContainer.style.width = "280px";
+        logContainer.style.minWidth = "200px";
         logContainer.style.minHeight = "100px";
-        logContainer.style.resize = "both";       
-        logContainer.style.overflow = "hidden";   
-        
+        logContainer.style.resize = "both";
+        logContainer.style.overflow = "hidden";
+
         // Appearance
-        logContainer.style.padding = "15px"; 
-        logContainer.style.backgroundColor = "rgba(0,0,0,0.6)"; 
+        logContainer.style.padding = "15px";
+        logContainer.style.backgroundColor = "rgba(0,0,0,0.3)";
         logContainer.style.color = "#00FF00";
         logContainer.style.zIndex = "999999";
-        logContainer.style.fontSize = "16px"; 
-        logContainer.style.fontWeight = "bold"; 
+        logContainer.style.fontSize = "16px";
+        logContainer.style.fontWeight = "bold";
         logContainer.style.fontFamily = "monospace";
-        
-        logContainer.style.borderRadius = "12px"; 
+
+        logContainer.style.borderRadius = "12px";
         logContainer.style.border = "1px solid #444";
-        logContainer.style.backdropFilter = "blur(5px)"; 
-        logContainer.style.cursor = "move"; 
+        logContainer.style.backdropFilter = "blur(5px)";
+        logContainer.style.cursor = "move";
         logContainer.style.boxShadow = "0 4px 15px rgba(0,0,0,0.5)";
-        
+
         var content = document.createElement("div");
         content.id = "ip-content-area";
         content.innerHTML = "<span style='color:#ccc;'>📍 Waiting for partner...</span>";
-        content.style.pointerEvents = "none"; 
+        content.style.pointerEvents = "none";
         logContainer.appendChild(content);
 
         document.body.appendChild(logContainer);
@@ -63,12 +69,12 @@
         logContainer.addEventListener('mousedown', function(e) {
             // Check if clicking text (allow selection)
             if (e.target.tagName !== "B" && e.target.tagName !== "SPAN" && e.target.tagName !== "DIV") {
-                 e.preventDefault(); 
+                 e.preventDefault();
             }
 
             // Check if clicking resize handle (bottom-right 20px)
             if (e.offsetX > logContainer.offsetWidth - 20 && e.offsetY > logContainer.offsetHeight - 20) {
-                return; 
+                return;
             }
 
             isDragging = true;
@@ -99,9 +105,9 @@
                 background-color: #000000 !important;
             }
             .message-bubble {
-                background-color: #111111 !important; 
-                border: 1px solid #333 !important; 
-                color: #ffffff !important;         
+                background-color: #111111 !important;
+                border: 1px solid #333 !important;
+                color: #ffffff !important;
             }
             .message.system .message-bubble {
                 color: #aaaaaa !important;
@@ -142,7 +148,7 @@
         if (!str) return "Unknown";
         // Just prevents code injection, displays symbols as they are
         return String(str)
-            .replace(/&/g, "&amp;") 
+            .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;");
@@ -172,27 +178,33 @@
     // 6. API: BYPASS CORS using GM_xmlhttpRequest
     var getLocation = function(ip) {
         updateMessage(`<span style='color:yellow'>Fetching info for ${ip}...</span>`);
-        
+
         GM_xmlhttpRequest({
             method: "GET",
-            url: `https://ipwho.is/${ip}`,
+            // We use http here because ip-api.com's free tier is HTTP only.
+            // GM_xmlhttpRequest allows this mixed content without issues.
+            url: `http://ip-api.com/json/${ip}?fields=status,message,country,regionName,city,isp,query`,
             onload: function(response) {
                 try {
                     var json = JSON.parse(response.responseText);
-                    if (json.success) {
+                    if (json.status === 'success') {
                         const output = `
                         <div style="line-height: 1.6; text-shadow: 1px 1px 2px black;">
                             <span style="color:#777777;">${safe(json.country)}</span><br>
-                            <span style="color:#DDDDDD;">${safe(json.city)}, ${safe(json.region)}</span><br>
-                            <span style="color:#33CCFF;">${safe(json.connection.isp)}</span><br>
-                            <span style="color:#00FF00;">${safe(json.ip)}</span>
+                            <span style="color:#DDDDDD;">${safe(json.city)}, ${safe(json.regionName)}</span><br>
+                            <span style="color:#33CCFF;">${safe(json.isp)}</span><br>
+                            <span style="color:#00FF00;">${safe(json.query)}</span>
                         </div>`;
                         updateMessage(output);
                     } else {
-                        updateMessage(`<span style='color:red'>Private/Local IP</span>`);
+                        // If the API returns a logic error (like "reserved range")
+                        var errorReason = json.message || "Private/Local IP";
+                        updateMessage(`<span style='color:red'>${safe(errorReason)}</span>`);
                     }
                 } catch (e) {
-                    updateMessage(`<span style='color:red'>Data Parse Error</span>`);
+                    // This triggers if the API sends HTML (Ban page) instead of JSON
+                    console.error("Parsing failed. Response was:", response.responseText);
+                    updateMessage(`<span style='color:red'>Data Parse Error (Check Console)</span>`);
                 }
             },
             onerror: function(error) {
