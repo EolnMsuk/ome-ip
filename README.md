@@ -7,6 +7,12 @@
 
 **The ultimate power suite for Ome.tv and Omegle-like platforms.** `ome-ip` is a sophisticated Userscript that injects a pro-level control panel directly into your chat interface. It provides real-time geolocation, stealth features, automation, and advanced protection layers that bypass standard restrictions.
 
+## 📖 Table of Contents
+- [⚡ Key Features](#-key-features)
+- [💻 Current Support](#-current-support)
+- [📥 Installation Guide](#-installation-guide)
+- [⚙️ How to Use](#%EF%B8%8F-how-to-use)
+- [📝 Disclaimer](#-disclaimer)
 
 ---
 
