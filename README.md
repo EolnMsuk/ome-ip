@@ -58,12 +58,12 @@
 This script is optimized for and matches the following sites:
 
 * `ome.tv`
-* `omegleapp.me` (includes specific disconnect monitoring)
-* `chatroulette.com`
-* `monkey.app`
 * `thundr.com`
+* `monkey.app`
+* `omegleapp.me`
 * `umingle.com`
 * `omegleweb.com`
+* `chatroulette.com`
 
 <img width="1729" height="1749" alt="ome-ipSS" src="https://github.com/user-attachments/assets/bd2a084a-0168-4afe-b9ca-fb5bf33e2eb5" />
 
