@@ -12,6 +12,7 @@
 - [💻 Current Support](#-current-support)
 - [📥 Installation Guide](#-installation-guide)
 - [📝 Disclaimer](#-disclaimer)
+- [💰 Donate](#-donate)
 
 ---
 
