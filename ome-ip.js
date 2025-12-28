@@ -1843,6 +1843,7 @@
     }
 
     // Replace your existing createCountryControlRow function with this:
+    // [REPLACEMENT CODE FOR createCountryControlRow]
     function createCountryControlRow(container, list) {
         const row = document.createElement("div");
         Object.assign(row.style, {
@@ -1869,10 +1870,13 @@
         });
 
         selectAllBtn.onclick = () => {
+            // Re-load data to ensure we have the latest reference
             const { blockedCountries } = loadData();
             if (list) {
                 const allCodes = list.map(c => c.code);
+                // Check if every country in the list is currently blocked
                 const allSel = allCodes.every(c => blockedCountries.has(c));
+                // Toggle: If all selected, delete all. Otherwise, add all.
                 allCodes.forEach(c => allSel ? blockedCountries.delete(c) : blockedCountries.add(c));
                 queueSave();
                 renderBlockedCountries();
@@ -1898,9 +1902,19 @@
         });
 
         defaultBtn.onclick = () => {
-            loadData().blockedCountries = new Set(DEFAULT_BLOCKED_COUNTRIES);
-            queueSave();
-            renderBlockedCountries();
+            // FIX: Update the GLOBAL variable directly
+            if (typeof blockedCountriesCache !== 'undefined') {
+                blockedCountriesCache = new Set(DEFAULT_BLOCKED_COUNTRIES);
+                queueSave();
+                renderBlockedCountries();
+                showToast("Countries reset to Default");
+            } else {
+                // Fallback if cache is somehow missing (rare)
+                loadData();
+                blockedCountriesCache = new Set(DEFAULT_BLOCKED_COUNTRIES);
+                queueSave();
+                renderBlockedCountries();
+            }
         };
 
         row.appendChild(selectAllBtn);
@@ -2076,9 +2090,9 @@
             fontFamily: "monospace", textTransform: "uppercase"
         });
         bgInfo.innerHTML = `
-            <div>Donate: $eolnmsuk</div>
-            <div>Support: github.com/eolnmsuk</div>
+            <div>Support: github.com/EolnMsuk</div>
             <div>Discord: discord.gg/omeglestream</div>
+			<div>Donate: $eolnmsuk</div>
         `;
         container.appendChild(bgInfo);
 
@@ -2104,7 +2118,7 @@
 
         const { blockedIPs, history } = loadData();
 
-        if (blockedIPs.size === 0) list.innerHTML = "<div style='color:#666; text-align:center;'>No IPs blocked.</div>";
+        if (blockedIPs.size === 0) list.innerHTML = "<div style='color:#666; text-align:center;'>No IPs blocked yet.</div>";
         else {
             Array.from(blockedIPs).reverse().forEach(ip => {
                 const item = document.createElement("div");
@@ -2317,15 +2331,15 @@
         const outScript = "this.style.color='#888'";
 
         footer.innerHTML = `
-            <div style="font-weight: bold; color: #555; text-transform: uppercase; margin-bottom: 4px;">About Developer</div>
+            <div style="font-weight: bold; color: #555; text-transform: uppercase; margin-bottom: 4px;">ome-ip v2.2</div>
             <div style="margin-bottom:2px;">
-                <a href="https://cash.app/$eolnmsuk" target="_blank" style="${linkStyle}" onmouseover="${hoverScript}" onmouseout="${outScript}">$eolnmsuk</a>
+                <a href="https://github.com/EolnMsuk" target="_blank" style="${linkStyle}" onmouseover="${hoverScript}" onmouseout="${outScript}">github.com/EolnMsuk</a>
             </div>
             <div style="margin-bottom:2px;">
-                <a href="https://github.com/eolnmsuk" target="_blank" style="${linkStyle}" onmouseover="${hoverScript}" onmouseout="${outScript}">github.com/eolnmsuk</a>
+                <a href="https://discord.gg/omeglestream" target="_blank" style="${linkStyle}" onmouseover="${hoverScript}" onmouseout="${outScript}">discord.gg/omeglestream</a>
             </div>
             <div>
-                <a href="https://discord.gg/omeglestream" target="_blank" style="${linkStyle}" onmouseover="${hoverScript}" onmouseout="${outScript}">discord.gg/omeglestream</a>
+                <a href="https://cash.app/$eolnmsuk" target="_blank" style="${linkStyle}" onmouseover="${hoverScript}" onmouseout="${outScript}">cash.app/$eolnmsuk</a>
             </div>
         `;
         content.appendChild(footer);
