@@ -16,7 +16,7 @@
 
 * **Real-Time IP Fetching:** Instantly grabs partner IP addresses using native WebRTC interception.
 * **Precision Geolocation:** Displays City, Region, Country, and ISP information (powered by `ip-api.com`).
-* **Map Integration:** * Built-in draggable Map Window.
+* **Map Integration:** Built-in draggable Map Window.
 * **Street View Mode:** Drop directly into street view of the target location.
 
 
@@ -32,7 +32,7 @@
 
 ### 🚫 Blocking & Filtering
 
-* **Country Blocker:** * Block entire countries or specific regions.
+* **Country Blocker:** Block entire countries or specific regions.
 * Sort countries by **Continent**, **A-Z**, or **Language**.
 * Smart "Auto-Skip" triggers immediately upon matching a blocked country.
 
