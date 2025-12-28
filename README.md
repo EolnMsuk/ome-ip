@@ -65,7 +65,7 @@ This script is optimized for and matches the following sites:
 * `umingle.com`
 * `omegleweb.com`
 
-<img width="1729" height="1749" alt="ome-ipSS" src="https://github.com/user-attachments/assets/4b27dab9-40e2-4d99-9cc8-b9c38a74770a" />
+<img width="1729" height="1749" alt="ome-ipSS" src="https://github.com/user-attachments/assets/bd2a084a-0168-4afe-b9ca-fb5bf33e2eb5" />
 
 ---
 
