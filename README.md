@@ -130,6 +130,8 @@ You need an extension that manages scripts. **Tampermonkey** is the industry sta
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
----
+## 💰 Donate
 
-*Author: [$eolnmsuk](https://github.com/EolnMsuk)*
+  * CashApp: `cash.app/$eolnmsuk`
+  * BTC: `bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks`
+  * Author: `https://github.com/EolnMsuk`
