@@ -11,7 +11,6 @@
 - [⚡ Key Features](#-key-features)
 - [💻 Current Support](#-current-support)
 - [📥 Installation Guide](#-installation-guide)
-- [⚙️ How to Use](#%EF%B8%8F-how-to-use)
 - [📝 Disclaimer](#-disclaimer)
 
 ---
