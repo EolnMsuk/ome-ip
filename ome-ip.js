@@ -280,7 +280,7 @@
     let globalVolume = 1.0;
     let myOwnIPData = null;
 
-	// --- NEW GLOBALS FOR UI ---
+    // --- NEW GLOBALS FOR UI ---
     let isDarkModeActive = false;
     let customHiddenSelectors = new Set(); // For 'Visibility Hidden'
     let customBlackoutSelectors = new Set(); // For 'Black Out'
@@ -295,10 +295,10 @@
     let facesDetectedCount = 0;
     let reportsBlockedCount = 0;
     let areWatermarksHidden = true; // Default to hidden
-	let isWsProtectionActive = false;
-	let isFaceProtectionEnabled = true;
+    let isWsProtectionActive = false;
+    let isFaceProtectionEnabled = true;
     let isReportProtectionEnabled = true;
-	let isIPGrabbingEnabled = true;
+    let isIPGrabbingEnabled = true;
 
     // UI State
     let currentCountrySort = 'az';
@@ -388,7 +388,6 @@
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
     }
-// [ADD THIS AFTER makeDraggable FUNCTION]
 
     // --- REPORT SOUND & WITTY REMARKS ---
     function triggerReportSound() {
@@ -437,11 +436,11 @@
             if (type === 'ip') el.title = isActive ? "IP Grabbing: ON (Click to Stop)" : "IP Grabbing: OFF (Click to Start)";
             if (type === 'face') el.title = isActive ? `Face Bypass: Active\nFaces Spoofed: ${facesDetectedCount}\n(Click to Disable)` : "Face Bypass: DISABLED\n(Click to Enable)";
             if (type === 'report') {
-                 const rColor = isReportProtectionEnabled ? (isWsProtectionActive ? "#00FF00" : "#FFA500") : "#FF0000";
-                 const rActive = isReportProtectionEnabled;
-                 el.style.borderColor = rActive ? rColor : "#888";
-                 el.style.boxShadow = (rActive && reportsBlockedCount > 0) ? `0 0 8px ${rColor}` : (rActive ? `0 0 5px ${rColor}` : "none");
-                 el.title = rActive ? `Report Protection: ${isWsProtectionActive ? "Active" : "Loading..."}\nReports Blocked: ${reportsBlockedCount}\n(Click to Disable)` : "Report Protection: DISABLED\n(Click to Enable)";
+                const rColor = isReportProtectionEnabled ? (isWsProtectionActive ? "#00FF00" : "#FFA500") : "#FF0000";
+                const rActive = isReportProtectionEnabled;
+                el.style.borderColor = rActive ? rColor : "#888";
+                el.style.boxShadow = (rActive && reportsBlockedCount > 0) ? `0 0 8px ${rColor}` : (rActive ? `0 0 5px ${rColor}` : "none");
+                el.title = rActive ? `Report Protection: ${isWsProtectionActive ? "Active" : "Loading..."}\nReports Blocked: ${reportsBlockedCount}\n(Click to Disable)` : "Report Protection: DISABLED\n(Click to Enable)";
             }
         };
 
@@ -604,7 +603,7 @@
             if (blockedCountriesCache) GM_setValue('ome_blocked_countries', JSON.stringify([...blockedCountriesCache]));
             GM_setValue('ome_country_blocking_enabled', countryBlockingEnabled);
             GM_setValue('ome_ip_blocking_enabled', ipBlockingEnabled);
-			GM_setValue('ome_dark_mode_active', isDarkModeActive);
+            GM_setValue('ome_dark_mode_active', isDarkModeActive);
             GM_setValue('ome_custom_hidden', JSON.stringify([...customHiddenSelectors]));
             GM_setValue('ome_custom_blackout', JSON.stringify([...customBlackoutSelectors]));
             isDirty = false;
@@ -616,7 +615,7 @@
         ipHistoryCache = {};
         blockedIPsCache = new Set();
         blockedCountriesCache = new Set(DEFAULT_BLOCKED_COUNTRIES);
-		customHiddenSelectors = new Set();
+        customHiddenSelectors = new Set();
         customBlackoutSelectors = new Set();
 
         countryBlockingEnabled = false;
@@ -742,39 +741,39 @@
 
     async function performFallbackSkip() {
         const isChatEnded = () => {
-             const startBtn = document.querySelector('.buttons__button.start, .btn-new-chat, button.newbtn');
-             const stopBtn = document.querySelector('.buttons__button.stop, button.disconnectbtn');
-             if (startBtn && startBtn.offsetParent) return true;
-             if (stopBtn && stopBtn.offsetParent) return false;
-             return true;
+            const startBtn = document.querySelector('.buttons__button.start, .btn-new-chat, button.newbtn');
+            const stopBtn = document.querySelector('.buttons__button.stop, button.disconnectbtn');
+            if (startBtn && startBtn.offsetParent) return true;
+            if (stopBtn && stopBtn.offsetParent) return false;
+            return true;
         };
 
         const doEsc = async (times) => {
-             pressEscape();
-             if(times > 1) { await delay(1000 + Math.random()*200); pressEscape(); }
+            pressEscape();
+            if(times > 1) { await delay(1000 + Math.random()*200); pressEscape(); }
         };
         const doClick = async (times) => {
-             await clickGenericNextBtn();
-             if(times > 1) { await delay(1000 + Math.random()*200); await clickGenericNextBtn(); }
+            await clickGenericNextBtn();
+            if(times > 1) { await delay(1000 + Math.random()*200); await clickGenericNextBtn(); }
         };
 
         let attempt = fallbackMethod;
         logDev("SKIP", `Fallback Strategy: ${attempt}`);
 
         if (attempt === 'esc1') {
-             await doEsc(1); await delay(600);
-             if (!isChatEnded()) { logDev("SKIP", "Fallback: ESCx1 failed, upgrading to ESCx2"); fallbackMethod = 'esc2'; await doEsc(1); }
+            await doEsc(1); await delay(600);
+            if (!isChatEnded()) { logDev("SKIP", "Fallback: ESCx1 failed, upgrading to ESCx2"); fallbackMethod = 'esc2'; await doEsc(1); }
         }
         else if (attempt === 'esc2') {
-             await doEsc(2); await delay(600);
-             if (!isChatEnded()) { logDev("SKIP", "Fallback: ESCx2 failed, upgrading to Clickx1"); fallbackMethod = 'click1'; await doClick(1); }
+            await doEsc(2); await delay(600);
+            if (!isChatEnded()) { logDev("SKIP", "Fallback: ESCx2 failed, upgrading to Clickx1"); fallbackMethod = 'click1'; await doClick(1); }
         }
         else if (attempt === 'click1') {
-             await doClick(1); await delay(600);
-             if (!isChatEnded()) { logDev("SKIP", "Fallback: Clickx1 failed, upgrading to Clickx2"); fallbackMethod = 'click2'; await doClick(1); }
+            await doClick(1); await delay(600);
+            if (!isChatEnded()) { logDev("SKIP", "Fallback: Clickx1 failed, upgrading to Clickx2"); fallbackMethod = 'click2'; await doClick(1); }
         }
         else if (attempt === 'click2') {
-             await doClick(2);
+            await doClick(2);
         }
     }
 
@@ -861,7 +860,7 @@
         });
     }
 
-	// --- ELEMENT SELECTOR LOGIC ---
+    // --- ELEMENT SELECTOR LOGIC ---
     function startSelector(mode) {
         if (elementSelectorMode) exitSelectorMode();
         elementSelectorMode = mode;
@@ -977,12 +976,12 @@
 
                 // Add classes if available, but filter out common generic/dynamic ones
                 if (el.className && typeof el.className === 'string') {
-                     const validClasses = el.className.split(/\s+/)
-                        .filter(c => c && !c.includes('ome-') && !c.includes('active') && !c.includes('hover') && !c.match(/^\d/));
+                    const validClasses = el.className.split(/\s+/)
+                    .filter(c => c && !c.includes('ome-') && !c.includes('active') && !c.includes('hover') && !c.match(/^\d/));
 
-                     if (validClasses.length > 0) {
-                         selector += '.' + validClasses.join('.');
-                     }
+                    if (validClasses.length > 0) {
+                        selector += '.' + validClasses.join('.');
+                    }
                 }
 
                 if (nth > 1) selector += `:nth-of-type(${nth})`;
@@ -1010,7 +1009,7 @@
         applyCustomHides();
     }
 
-	function unhideAllElements() {
+    function unhideAllElements() {
         if (!confirm("Unhide ALL custom hidden elements?\nThis will clear all your saved hides.")) return;
         customHiddenSelectors.clear();
         customBlackoutSelectors.clear();
@@ -1174,8 +1173,8 @@
             // If opening, white border. If closing, restore based on mode.
             if(isOpening) wmBtn.style.borderColor = "#fff";
             else {
-                 if (isDarkModeActive) { wmBtn.style.borderColor = "#FF0000"; }
-                 else { wmBtn.style.borderColor = "#666"; }
+                if (isDarkModeActive) { wmBtn.style.borderColor = "#FF0000"; }
+                else { wmBtn.style.borderColor = "#666"; }
             }
         };
         wmWrapper.appendChild(wmBtn); wmWrapper.appendChild(menu);
@@ -1318,9 +1317,9 @@
                 }
                 // If it is the Country/IP Badge, keep it semi-visible so text is readable
                 else if (el.classList.contains('clickable-badge')) {
-                     el.style.opacity = "0.8";
-                     el.style.filter = "none";
-                     el.style.boxShadow = "none";
+                    el.style.opacity = "0.8";
+                    el.style.filter = "none";
+                    el.style.boxShadow = "none";
                 }
                 // Everything else (Settings button, etc) gets dimmed
                 else {
@@ -1428,7 +1427,7 @@
         // 4. Update Tabs if Settings Window is open
         const settingsWin = document.getElementById("ome-settings-window");
         if (settingsWin && settingsWin.style.display === "flex") {
-             switchTab(lastActiveTab);
+            switchTab(lastActiveTab);
         }
 
         // 5. [NEW] Sync Advanced Settings Toggles
@@ -1565,15 +1564,15 @@
 
         const svBtn = document.createElement("button");
         if (isStreetViewActive) {
-             svBtn.innerText = "🔙 Return to Map";
-             Object.assign(svBtn.style, {
+            svBtn.innerText = "🔙 Return to Map";
+            Object.assign(svBtn.style, {
                 display: "inline-block", padding: "6px 12px", background: "#555", color: "#fff",
                 borderRadius: "4px", fontWeight: "bold", fontSize: "12px",
                 border: "1px solid #777", cursor: "pointer"
             });
         } else {
-             svBtn.innerText = "🚶 Open Street View";
-             Object.assign(svBtn.style, {
+            svBtn.innerText = "🚶 Open Street View";
+            Object.assign(svBtn.style, {
                 display: "inline-block", padding: "6px 12px", background: "#E6C200", color: "#000",
                 borderRadius: "4px", fontWeight: "bold", fontSize: "12px",
                 border: "1px solid #C4A600", cursor: "pointer"
@@ -1616,8 +1615,8 @@
         copyLogBtn.className = "copy-btn";
         Object.assign(copyLogBtn.style, { cursor: "pointer", background: "#004400", border: "1px solid #0f0", color: "#0f0", fontSize: "10px", padding: "2px 5px" });
         copyLogBtn.onclick = () => {
-             const txt = devLogs.map(l => `[${l.time}] [${l.type}] ${l.msg}`).join("\n");
-             navigator.clipboard.writeText(txt).then(() => showToast("Log Copied", win));
+            const txt = devLogs.map(l => `[${l.time}] [${l.type}] ${l.msg}`).join("\n");
+            navigator.clipboard.writeText(txt).then(() => showToast("Log Copied", win));
         };
 
         const copyErrBtn = document.createElement("button");
@@ -1625,9 +1624,9 @@
         copyErrBtn.className = "copy-btn";
         Object.assign(copyErrBtn.style, { cursor: "pointer", background: "#440000", border: "1px solid #f00", color: "#f99", fontSize: "10px", padding: "2px 5px" });
         copyErrBtn.onclick = () => {
-             const txt = devLogs.filter(l => l.type === 'ERR' || l.type === 'API' || l.msg.includes('Error') || l.msg.includes('Fail')).map(l => `[${l.time}] [${l.type}] ${l.msg}`).join("\n");
-             if(!txt) { showToast("No Errors found", win); return; }
-             navigator.clipboard.writeText(txt).then(() => showToast("Errors Copied", win));
+            const txt = devLogs.filter(l => l.type === 'ERR' || l.type === 'API' || l.msg.includes('Error') || l.msg.includes('Fail')).map(l => `[${l.time}] [${l.type}] ${l.msg}`).join("\n");
+            if(!txt) { showToast("No Errors found", win); return; }
+            navigator.clipboard.writeText(txt).then(() => showToast("Errors Copied", win));
         };
 
         const clearBtn = document.createElement("button");
@@ -1635,9 +1634,9 @@
         clearBtn.className = "copy-btn";
         Object.assign(clearBtn.style, { cursor: "pointer", background: "#444400", border: "1px solid #ff0", color: "#ff0", fontSize: "10px", padding: "2px 5px" });
         clearBtn.onclick = () => {
-             devLogs = [];
-             updateDevConsole();
-             showToast("Log Cleared", win);
+            devLogs = [];
+            updateDevConsole();
+            showToast("Log Cleared", win);
         };
 
         const closeBtn = document.createElement("button");
@@ -1763,7 +1762,7 @@
 
         document.body.appendChild(win);
         makeDraggable(header, win); updateMasterToggles();
-		sandboxWindowEvents(win);
+        sandboxWindowEvents(win);
     }
 
     document.addEventListener('mousedown', (e) => {
@@ -1846,11 +1845,11 @@
     // Replace your existing createCountryControlRow function with this:
     function createCountryControlRow(container, list) {
         const row = document.createElement("div");
-        Object.assign(row.style, { 
-            display: "flex", 
-            gap: "10px", 
-            marginBottom: "10px", 
-            alignItems: "center", 
+        Object.assign(row.style, {
+            display: "flex",
+            gap: "10px",
+            marginBottom: "10px",
+            alignItems: "center",
             padding: "0 5px",
             position: "relative", // Needed for absolute centering
             height: "36px"        // Enforce height so the absolute button fits
@@ -1858,24 +1857,24 @@
 
         // 1. SELECT ALL BUTTON (Top Left)
         const selectAllBtn = document.createElement("button");
-        selectAllBtn.innerText = "☑ ALL"; 
+        selectAllBtn.innerText = "☑ ALL";
         selectAllBtn.title = "Select / Deselect All";
-        Object.assign(selectAllBtn.style, { 
-            width: "70px", 
-            padding: "8px", 
-            backgroundColor: "#555", color: "#eee", 
-            border: "1px solid #777", borderRadius: "4px", 
+        Object.assign(selectAllBtn.style, {
+            width: "70px",
+            padding: "8px",
+            backgroundColor: "#555", color: "#eee",
+            border: "1px solid #777", borderRadius: "4px",
             cursor: "pointer", fontWeight: "bold", fontSize: "12px",
             textAlign: "center"
         });
-        
+
         selectAllBtn.onclick = () => {
             const { blockedCountries } = loadData();
             if (list) {
                 const allCodes = list.map(c => c.code);
                 const allSel = allCodes.every(c => blockedCountries.has(c));
                 allCodes.forEach(c => allSel ? blockedCountries.delete(c) : blockedCountries.add(c));
-                queueSave(); 
+                queueSave();
                 renderBlockedCountries();
             }
         };
@@ -1883,21 +1882,21 @@
         // 2. DEFAULT BUTTON (True Center)
         const defaultBtn = document.createElement("button");
         defaultBtn.innerText = "↺ Defaults";
-        Object.assign(defaultBtn.style, { 
+        Object.assign(defaultBtn.style, {
             position: "absolute",       // Ignore other elements
             left: "50%",                // Move to middle
             transform: "translateX(-50%)", // Center align perfectly
-            width: "140px", 
-            padding: "8px", 
-            backgroundColor: "#0056b3", 
-            color: "white", 
-            border: "1px solid #004494", 
-            borderRadius: "4px", 
-            cursor: "pointer", 
+            width: "140px",
+            padding: "8px",
+            backgroundColor: "#0056b3",
+            color: "white",
+            border: "1px solid #004494",
+            borderRadius: "4px",
+            cursor: "pointer",
             fontWeight: "bold",
             fontSize: "12px"
         });
-        
+
         defaultBtn.onclick = () => {
             loadData().blockedCountries = new Set(DEFAULT_BLOCKED_COUNTRIES);
             queueSave();
@@ -2151,7 +2150,7 @@
         container.appendChild(list);
     }
 
-	// --- NEW HELPER: Sync Advanced Settings Toggles ---
+    // --- NEW HELPER: Sync Advanced Settings Toggles ---
     function updateAdvToggleVisual(id, isActive) {
         const el = document.getElementById(id);
         if (!el) return;
@@ -2233,33 +2232,33 @@
         };
 
         const createToggleRow = (id, label, icon, isEnabled, onToggle) => {
-             const div = document.createElement("div");
-             div.id = id;
-             Object.assign(div.style, { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px", background:"rgba(255,255,255,0.03)", borderRadius:"6px", cursor: "pointer" });
+            const div = document.createElement("div");
+            div.id = id;
+            Object.assign(div.style, { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px", background:"rgba(255,255,255,0.03)", borderRadius:"6px", cursor: "pointer" });
 
-             const left = document.createElement("div"); left.style.display="flex"; left.style.alignItems="center";
-             left.innerHTML = `<span style="font-size:18px; margin-right:10px;">${icon}</span><span style="font-size:13px; font-weight:bold; color:#eee;">${label}</span>`;
+            const left = document.createElement("div"); left.style.display="flex"; left.style.alignItems="center";
+            left.innerHTML = `<span style="font-size:18px; margin-right:10px;">${icon}</span><span style="font-size:13px; font-weight:bold; color:#eee;">${label}</span>`;
 
-             const tBtn = document.createElement("div");
-             tBtn.className = "ome-toggle-track";
+            const tBtn = document.createElement("div");
+            tBtn.className = "ome-toggle-track";
 
-             tBtn.style.backgroundColor = isEnabled ? "#00E000" : "#444";
-             tBtn.style.width = "46px"; tBtn.style.height = "22px";
-             tBtn.innerHTML = `<div class="ome-toggle-knob" style="transition: transform 0.2s; width:18px; height:18px; transform: ${isEnabled ? 'translateX(26px)' : 'translateX(2px)'}"></div>`;
+            tBtn.style.backgroundColor = isEnabled ? "#00E000" : "#444";
+            tBtn.style.width = "46px"; tBtn.style.height = "22px";
+            tBtn.innerHTML = `<div class="ome-toggle-knob" style="transition: transform 0.2s; width:18px; height:18px; transform: ${isEnabled ? 'translateX(26px)' : 'translateX(2px)'}"></div>`;
 
-             div.onclick = onToggle;
-             div.appendChild(left); div.appendChild(tBtn);
-             return div;
+            div.onclick = onToggle;
+            div.appendChild(left); div.appendChild(tBtn);
+            return div;
         };
 
         // 2. BLOCKING CONFIG
         const blockDiv = document.createElement("div");
         blockDiv.innerHTML = sectionTitle("Blocking Rules");
         blockDiv.appendChild(createToggleRow("adv-toggle-ip-block", "IP Blocking", "🛡️", ipBlockingEnabled, () => {
-             ipBlockingEnabled = !ipBlockingEnabled; updateMasterToggles(); queueSave();
+            ipBlockingEnabled = !ipBlockingEnabled; updateMasterToggles(); queueSave();
         }));
         blockDiv.appendChild(createToggleRow("adv-toggle-country-block", "Country Blocking", "🌍", countryBlockingEnabled, () => {
-             countryBlockingEnabled = !countryBlockingEnabled; updateMasterToggles(); queueSave();
+            countryBlockingEnabled = !countryBlockingEnabled; updateMasterToggles(); queueSave();
         }));
         content.appendChild(blockDiv);
 
@@ -2267,17 +2266,17 @@
         const coreDiv = document.createElement("div");
         coreDiv.innerHTML = sectionTitle("Core Features");
         coreDiv.appendChild(createToggleRow("adv-toggle-ip-grab", "IP Grabber", "📡", isIPGrabbingEnabled, () => {
-             isIPGrabbingEnabled = !isIPGrabbingEnabled; updateStatusDots();
+            isIPGrabbingEnabled = !isIPGrabbingEnabled; updateStatusDots();
         }));
         coreDiv.appendChild(createToggleRow("adv-toggle-face-bypass", "Face Bypass", "🎭", isFaceProtectionEnabled, () => {
-             isFaceProtectionEnabled = !isFaceProtectionEnabled;
-             window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'face', enabled: isFaceProtectionEnabled } }));
-             updateStatusDots();
+            isFaceProtectionEnabled = !isFaceProtectionEnabled;
+            window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'face', enabled: isFaceProtectionEnabled } }));
+            updateStatusDots();
         }));
         coreDiv.appendChild(createToggleRow("adv-toggle-report-prot", "Report Protection", "🛡️", isReportProtectionEnabled, () => {
-             isReportProtectionEnabled = !isReportProtectionEnabled;
-             window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'report', enabled: isReportProtectionEnabled } }));
-             updateStatusDots();
+            isReportProtectionEnabled = !isReportProtectionEnabled;
+            window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'report', enabled: isReportProtectionEnabled } }));
+            updateStatusDots();
         }));
         content.appendChild(coreDiv);
 
@@ -2368,7 +2367,7 @@
         document.body.appendChild(win);
         makeDraggable(header, win);
         makeDraggable(win, win);
-		sandboxWindowEvents(win);
+        sandboxWindowEvents(win);
     }
 
     function toggleChatInputDisability(disable) {
@@ -2408,12 +2407,12 @@
         // If Settings Window is open, deny focus to site elements (prevent glitching)
         const settingsWin = document.getElementById('ome-settings-window');
         if (settingsWin && settingsWin.style.display === 'flex') {
-             if (this.closest('#ome-settings-window')) {
-                 return nativeFocus.apply(this, args);
-             }
-             // Optional: Allow chat focus if you still want to type while settings are open,
-             // but usually blocking it prevents the "glitch/close" behavior.
-             // return; // Uncomment to strict block
+            if (this.closest('#ome-settings-window')) {
+                return nativeFocus.apply(this, args);
+            }
+            // Optional: Allow chat focus if you still want to type while settings are open,
+            // but usually blocking it prevents the "glitch/close" behavior.
+            // return; // Uncomment to strict block
         }
 
         return nativeFocus.apply(this, args);
@@ -2568,7 +2567,7 @@
                     </div>
                 </div>`;
         } else {
-             html = `<div style="${fontStyle}" class="${outlineClass}"> <div style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px;">⏳ Fetching...</div> <div style="margin-top: 4px;"> <span title="Click to reveal" onclick="${toggleScript}" style="color:#FF9536; font-size: 18px; ${blurStyle}">${ip||""}</span> </div> </div>`;
+            html = `<div style="${fontStyle}" class="${outlineClass}"> <div style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px;">⏳ Fetching...</div> <div style="margin-top: 4px;"> <span title="Click to reveal" onclick="${toggleScript}" style="color:#FF9536; font-size: 18px; ${blurStyle}">${ip||""}</span> </div> </div>`;
         }
         contentArea.innerHTML = html;
     }
@@ -2633,7 +2632,7 @@
 
                 // Debug Log to Confirm Logic is Working
                 if (typeField === 'relay') {
-                     logDev("RTC", `⚠️ Relay Candidate Detected! (${typeField})`);
+                    logDev("RTC", `⚠️ Relay Candidate Detected! (${typeField})`);
                 }
 
                 // Regex Definitions
@@ -2914,7 +2913,7 @@
     }
 
     // CALL IMMEDIATELY - DO NOT WAIT FOR INIT
-	window.addEventListener('ome-bypass-event', (e) => {
+    window.addEventListener('ome-bypass-event', (e) => {
         if (e.detail.type === 'ws-ready') {
             isWsProtectionActive = true;
             // If UI exists, update it immediately
