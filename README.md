@@ -53,7 +53,7 @@
 
 ---
 
-## 💻 Supported Platforms
+## 💻 Current Support
 
 This script is optimized for and matches the following sites:
 
