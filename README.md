@@ -3,8 +3,7 @@
 ![Version](https://img.shields.io/badge/version-2.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-<img width="2816" height="1536" alt="Gemini_Generated_Image_e0uaqce0uaqce0ua" src="https://github.com/user-attachments/assets/ea8ebabd-9dca-43f1-b1db-a5e2d8b57bb5" />
-
+![ome-ads](https://github.com/user-attachments/assets/01f14147-2fab-4f52-b826-fc56abbd953b)
 
 **The ultimate power suite for Ome.tv and Omegle-like platforms.** `ome-ip` is a sophisticated Userscript that injects a pro-level control panel directly into your chat interface. It provides real-time geolocation, stealth features, automation, and advanced protection layers that bypass standard restrictions.
 
