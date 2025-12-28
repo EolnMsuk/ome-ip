@@ -1,9 +1,9 @@
 # ome-ip v2.0
 
+![ome-ads](https://github.com/user-attachments/assets/01f14147-2fab-4f52-b826-fc56abbd953b)
+
 ![Version](https://img.shields.io/badge/version-2.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-
-![ome-ads](https://github.com/user-attachments/assets/01f14147-2fab-4f52-b826-fc56abbd953b)
 
 **The ultimate power suite for Ome.tv and Omegle-like platforms.** `ome-ip` is a sophisticated Userscript that injects a pro-level control panel directly into your chat interface. It provides real-time geolocation, stealth features, automation, and advanced protection layers that bypass standard restrictions.
 
@@ -43,7 +43,7 @@
 ### 🤖 Automation & UI
 
 * **Smart Skip:** Intelligent skipping logic that attempts multiple methods (ESC key, clicking 'Next', DOM simulation) to ensure the skip happens even if the site lags.
-* **Dark Mode / UI Cleaner:** * **"Bloodshot" Dark Mode:** Turns the interface black/red and hides site watermarks/logos.
+* **Dark Mode / UI Cleaner:** Turns the interface black and hides site watermarks/logos.
 * **Element Hider:** Click-to-select tool to permanently hide/black out specific annoying page elements (ads, banners).
 
 
