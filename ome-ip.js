@@ -13,8 +13,9 @@
 // @match        https://omegleweb.com/*
 // @match        https://thundr.com/*
 // @match        https://umingle.com/*
+// @match        https://webcamtests.com/*
+// @connect      ipwho.is
 // @grant        GM_xmlhttpRequest
-// @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-start
@@ -25,98 +26,96 @@
 
     // --- 1. CSS INJECTION ---
     const GLOBAL_CSS = `
-        /* Custom Scrollbar */
+        /* ... (Keep previous scrollbar styles) ... */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1a1a1a; }
         ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; cursor: pointer; }
         ::-webkit-scrollbar-thumb:hover { background: #666; }
 
-        /* No Select Utility */
         .ome-no-select { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
         .ome-grab { cursor: grab !important; }
         .ome-grab:active { cursor: grabbing !important; }
 
         /* Animations & Hover Effects */
-        /* Common transition for all interactive elements */
-        button, .clickable-badge, .icon-btn, .ip-copy-btn, .ome-next-btn, .ome-map-btn, .status-toggle-btn, .ome-vol-slider {
+        button, .clickable-badge, .icon-btn, .ip-copy-btn, .ome-next-btn, .ome-map-btn, .ome-vol-slider {
             transition: transform 0.1s ease, filter 0.1s ease, background-color 0.2s;
         }
 
-        /* Hover: Slight Highlight / Pop / Shadow */
-        button:hover, .clickable-badge:hover, .icon-btn:hover, .ip-copy-btn:hover, .ome-next-btn:hover, .ome-map-btn:hover, .status-toggle-btn:hover {
-            filter: brightness(1.2);
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        /* Button Wrapper */
+        .ome-btn-wrapper {
+            width: 32px; height: 32px; position: relative; flex-shrink: 0; z-index: 5;
+        }
+        .ome-btn-wrapper:hover {
+            z-index: 100; /* Ensure active button floats above others */
         }
 
-        /* Active/Click: Depress/Shrink */
-        button:active, .clickable-badge:active, .icon-btn:active, .ip-copy-btn:active, .ome-next-btn:active, .ome-map-btn:active, .status-toggle-btn:active {
-            transform: scale(0.95) translateY(0);
-            filter: brightness(0.9);
-            box-shadow: none;
+        /* [UPDATED] Status Toggle Button - Solid Background */
+        .status-toggle-btn {
+            position: absolute; top: 0; right: 0;
+            width: 32px !important; height: 32px !important;
+            transition: width 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), border-color 0.2s, box-shadow 0.2s !important;
+            overflow: hidden; white-space: nowrap; display: flex !important; align-items: center !important; justify-content: flex-start !important; padding: 0 !important;
+
+            /* CHANGE: Set default to solid black */
+            background-color: #000000;
         }
 
-        /* Specific fix for slider so it simply brightens without jumping */
+        .status-toggle-btn:hover { width: 120px !important; }
+
+        /* ... (Keep rest of existing CSS below unchanged) ... */
+        button:hover, .clickable-badge:hover, .icon-btn:hover, .ip-copy-btn:hover, .ome-next-btn:hover, .ome-map-btn:hover {
+            filter: brightness(1.2); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+        button:active, .clickable-badge:active, .icon-btn:active, .ip-copy-btn:active, .ome-next-btn:active, .ome-map-btn:active {
+            transform: scale(0.95) translateY(0); filter: brightness(0.9); box-shadow: none;
+        }
         .ome-vol-slider:hover { transform: none; filter: brightness(1.1); }
-
-        /* Input Isolation */
         .chat-disabled { pointer-events: none !important; opacity: 0.5 !important; }
-
-        /* Resize Handle */
+        .ome-scroll-lock { overscroll-behavior: contain; }
         .resizable-win { resize: both; overflow: hidden; cursor: default; }
 
-        /* Outlines */
         .ome-text-outline { text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, -1px 0 0 #000, 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000; }
         .ome-text-outline-thick { text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, -2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000, -1px -2px 0 #000, 1px -2px 0 #000, -2px -1px 0 #000, 2px -1px 0 #000, -1px 2px 0 #000, 1px 2px 0 #000, -2px 1px 0 #000, 2px 1px 0 #000; }
 
-        /* Toast */
-        .ome-toast {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background-color: rgba(255, 140, 0, 0.85); color: white; padding: 4px 8px; border-radius: 4px;
-            font-size: 11px; font-weight: bold; pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
-            z-index: 1000; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.2);
-        }
+        .ome-toast { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(255, 140, 0, 0.85); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; pointer-events: none; opacity: 0; transition: opacity 0.3s ease; z-index: 1000; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.2); }
         .ome-toast.show { opacity: 1; }
 
-        /* Toggles & Sliders */
         .ome-toggle-track { position: relative; width: 50px; height: 24px; background-color: #333; border-radius: 12px; transition: background-color 0.2s; display: flex; align-items: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
         .ome-toggle-knob { position: absolute; left: 2px; width: 20px; height: 20px; background-color: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 8px; color: #333; font-weight: bold; }
+
         input[type=range].ome-vol-slider { -webkit-appearance: none; width: 100%; height: 20px; background-color: transparent; background-image: linear-gradient(to right, #FFA500 0%, #FFA500 100%, rgba(255,255,255,0.3) 100%, rgba(255,255,255,0.3) 100%); background-size: 100% 4px; background-repeat: no-repeat; background-position: center; cursor: pointer; margin: 0; }
         input[type=range].ome-vol-slider:focus { outline: none; }
         input[type=range].ome-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 12px; width: 12px; border-radius: 50%; background: #FFA500; cursor: pointer; margin-top: -4px; box-shadow: 0 0 2px rgba(0,0,0,0.5); }
         input[type=range].ome-vol-slider::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: transparent; border-radius: 2px; }
 
-        /* Ghost Button */
         .ghost-btn-inactive { background-color: transparent !important; border-color: rgba(255,255,255,0.5) !important; opacity: 0.6; transition: opacity 0.2s, border-color 0.2s; }
         .ghost-btn-inactive:hover { opacity: 1; border-color: rgba(255,255,255,0.8) !important; }
         .ghost-btn-active { background-color: rgba(255,255,255,0.8) !important; border-color: #fff !important; box-shadow: 0 0 10px rgba(255,255,255,0.5); }
 
-        /* --- WATERMARK & DARK MODE STYLES --- */
         body.ome-dark-mode { background-color: #000 !important; }
+        body.ome-dark-mode *:not(#ip-log-window):not(#ip-log-window *):not(.resizable-win):not(.resizable-win *):not(.ome-toast):not(#ome-menu-dropdown):not(#ome-menu-dropdown *) { background-color: #000 !important; border-color: #333 !important; color: #ccc !important; }
+        body.ome-dark-mode .watermark, body.ome-dark-mode [class*="watermark"], body.ome-dark-mode .logo, body.ome-dark-mode [class*="logo"]:not(.ome-no-select), body.ome-dark-mode .banner, body.ome-dark-mode .overlay-banner { visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }
 
-        /* EXCLUSION RULES: Apply Dark Mode to everything EXCEPT extension windows */
-        /* We exclude .resizable-win (all your windows) and their children, plus the toast and menu */
-        body.ome-dark-mode *:not(.resizable-win):not(.resizable-win *):not(.ome-toast):not(#ome-menu-dropdown):not(#ome-menu-dropdown *) {
-            background-color: #000 !important;
-            border-color: #333 !important;
-            color: #ccc !important;
-        }
-
-        /* Standard Hide logic for common watermarks */
-        body.ome-dark-mode .watermark, body.ome-dark-mode [class*="watermark"], body.ome-dark-mode .logo,
-        body.ome-dark-mode [class*="logo"]:not(.ome-no-select), body.ome-dark-mode .banner, body.ome-dark-mode .overlay-banner {
-            visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;
-        }
-
-        /* Selector Mode Highlights */
         .ome-selector-hover-hide { outline: 2px solid #FF0000 !important; background-color: rgba(255, 0, 0, 0.2) !important; cursor: crosshair !important; z-index: 99999999 !important; }
         .ome-selector-hover-blackout { outline: 2px solid #0000FF !important; background-color: rgba(0, 0, 255, 0.2) !important; cursor: crosshair !important; z-index: 99999999 !important; }
         .ome-selector-hover-unhide { outline: 2px solid #00FF00 !important; background-color: rgba(0, 255, 0, 0.2) !important; cursor: pointer !important; }
-
-        /* Persistent Hidden Classes */
         .ome-visually-hidden { visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }
         .ome-blacked-out { background-color: #000 !important; color: #000 !important; border-color: #000 !important; background-image: none !important; }
         .ome-blacked-out * { background-color: #000 !important; color: #000 !important; opacity: 0 !important; }
+
+        .ome-resize-handle { position: absolute; width: 16px; height: 16px; z-index: 99999990; background: transparent; }
+        .ome-rh-nw { top: 0; left: 0; cursor: nw-resize; }
+        .ome-rh-ne { top: 0; right: 0; cursor: ne-resize; }
+        .ome-rh-sw { bottom: 0; left: 0; cursor: sw-resize; }
+        .ome-rh-se { bottom: 0; right: 0; cursor: se-resize; }
+        .ome-resize-handle:hover { background: rgba(255, 255, 255, 0.1); }
+
+        @keyframes ome-jiggle { 0% { transform: rotate(0deg); } 25% { transform: rotate(10deg); } 50% { transform: rotate(0deg); } 75% { transform: rotate(-10deg); } 100% { transform: rotate(0deg); } }
+        .ome-anim-jiggle { display: inline-block; animation: ome-jiggle 2s infinite ease-in-out; }
+
+        .ome-icon-span { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background-color: transparent !important; }
+        .ome-btn-label { font-size: 11px; font-weight: bold; color: #fff; opacity: 0; margin-left: -10px; transition: all 0.2s ease; pointer-events: none; white-space: nowrap; }
+        .status-toggle-btn:hover .ome-btn-label { opacity: 1; margin-left: 2px; }
     `;
 
     const styleEl = document.createElement('style');
@@ -270,6 +269,66 @@
         'pk', 'qa', 'sa', 'sc', 'tn', 'tr', 'ye'
     ];
 
+	// [UPDATED] LOAD SETTINGS IMMEDIATELY (Synchronous)
+    function loadSettings() {
+        // 1. Core Toggles (Target: ON by default)
+        ipBlockingEnabled = GM_getValue('ome_ip_blocking_enabled', true);
+
+        // FIX: Changed default from true to false
+        isDarkModeActive = GM_getValue('ome_dark_mode_active', false); 
+        areWatermarksHidden = isDarkModeActive;
+
+        isIPGrabbingEnabled = GM_getValue('ome_ip_grabbing', true);
+        isReportProtectionEnabled = GM_getValue('ome_report_protection', true);
+        isFaceProtectionEnabled = GM_getValue('ome_face_protection', true);
+        isFingerprintSpoofingEnabled = GM_getValue('ome_fingerprint_spoofing', true);
+        isAntiBotEnabled = GM_getValue('ome_anti_bot', true);
+
+        // [NEW] Feature Toggles
+        isThumbnailCaptureEnabled = GM_getValue('ome_thumb_capture', true);
+        isReportSoundEnabled = GM_getValue('ome_report_sound', true);
+
+        // 2. Core Toggles (Target: OFF by default)
+        countryBlockingEnabled = GM_getValue('ome_country_blocking_enabled', false);
+        FAKE_CONFIG.rawAudio = GM_getValue('ome_raw_audio', false);
+        FAKE_CONFIG.spoofDeviceNames = GM_getValue('ome_spoof_devices', false);
+        FAKE_CONFIG.forceRelay = GM_getValue('ome_force_relay', false);
+        FAKE_CONFIG.udpStrict = GM_getValue('ome_udp_strict', false);
+        FAKE_CONFIG.enabled = GM_getValue('ome_fake_cam_enabled', false);
+        FAKE_CONFIG.antiBanFrames = GM_getValue('ome_antiban_frames', false);
+
+        // [NEW] Resolution Logic
+        const savedRes = GM_getValue('ome_cam_resolution', '640x480');
+        const [w, h] = savedRes.split('x').map(Number);
+        FAKE_CONFIG.canvasSize = { width: w || 640, height: h || 480 };
+
+        // [SYNC LOGIC] Default One Device Modes to match Spoof Device Names
+        const defaultOneMode = FAKE_CONFIG.spoofDeviceNames;
+
+        FAKE_CONFIG.oneCameraMode = GM_getValue('ome_one_cam_mode', defaultOneMode);
+        FAKE_CONFIG.oneInputMode = GM_getValue('ome_one_input_mode', defaultOneMode);
+        FAKE_CONFIG.oneOutputMode = GM_getValue('ome_one_output_mode', defaultOneMode);
+
+        FAKE_CONFIG.videoURL = GM_getValue('ome_fake_video_url', 'https://i.imgur.com/Bf7cILv.mp4');
+
+        // 4. Device Labels (Keep existing logic)
+        const loadLabels = (key, defaultArr) => {
+             try {
+                 const raw = GM_getValue(key, null);
+                 const arr = raw ? JSON.parse(raw) : defaultArr;
+                 return (Array.isArray(arr) && arr.length === 4) ? arr : defaultArr;
+             } catch(e) { return defaultArr; }
+         };
+         FAKE_CONFIG.videoLabels = loadLabels('ome_video_labels', DEFAULT_VIDEO_LABELS);
+         FAKE_CONFIG.audioInputLabels = loadLabels('ome_audio_input_labels', DEFAULT_AUDIO_INPUT_LABELS);
+         FAKE_CONFIG.audioOutputLabels = loadLabels('ome_audio_output_labels', DEFAULT_AUDIO_OUTPUT_LABELS);
+
+         try { customHiddenSelectors = new Set(JSON.parse(GM_getValue('ome_custom_hidden', '[]'))); } catch (e) { customHiddenSelectors = new Set(); }
+         try { customBlackoutSelectors = new Set(JSON.parse(GM_getValue('ome_custom_blackout', '[]'))); } catch (e) { customBlackoutSelectors = new Set(); }
+
+         console.log("[Ome-IP] Settings Loaded (Updated Defaults)");
+    }
+
     // Global variables
     let currentIP = null;
     let isRelayIP = false;
@@ -279,31 +338,38 @@
     let callSeconds = 0;
     let globalVolume = 1.0;
     let myOwnIPData = null;
+    let isThumbnailCaptureEnabled = true;
+    let isReportSoundEnabled = true;
 
     // --- NEW GLOBALS FOR UI ---
     let isDarkModeActive = false;
-    let customHiddenSelectors = new Set(); // For 'Visibility Hidden'
-    let customBlackoutSelectors = new Set(); // For 'Black Out'
-    let elementSelectorMode = null; // 'hide', 'blackout', 'unhide'
+    let customHiddenSelectors = new Set();
+    let customBlackoutSelectors = new Set();
+    let elementSelectorMode = null;
     let longPressTimer = null;
-    let isMenuOpen = false; // Track menu state
+    let isMenuOpen = false;
 
     // --- NEW GLOBAL STATE ---
-    let isStreetViewActive = false; // Locks the map window
+    let isStreetViewActive = false;
+    let isUILocked = false; // [NEW] Task 4: Lock State
 
     // Status Counters
     let facesDetectedCount = 0;
     let reportsBlockedCount = 0;
-    let areWatermarksHidden = true; // Default to hidden
+    let areWatermarksHidden = true;
     let isWsProtectionActive = false;
-    let isFaceProtectionEnabled = true;
-    let isReportProtectionEnabled = true;
-    let isIPGrabbingEnabled = true;
+
+    // [UPDATED] Task 2: DEFAULTS (Only IP Grab/Block ON by default)
+    let isFaceProtectionEnabled = false;
+    let isReportProtectionEnabled = false;
+    let isIPGrabbingEnabled = true; // Default ON
+    let isFingerprintSpoofingEnabled = false;
+    let isAntiBotEnabled = false; // [NEW] Task 1: Anti-Bot Toggle
 
     // UI State
     let currentCountrySort = 'az';
     let countryBlockingEnabled = false;
-    let ipBlockingEnabled = true;
+    let ipBlockingEnabled = true; // Default ON
     let expandedContinents = new Set();
     let isWindowTransparent = false;
     let lastActiveTab = "tab-countries";
@@ -332,6 +398,652 @@
     const KEEP_NEWEST_ITEMS = 500;
 
     // --- UTILITIES ---
+
+    class VideoFrameManager {
+        static async initialize() {
+            // Create a canvas for fake frames to bypass "black screen" detection
+            if (!window.fakeFrameCanvas) {
+                window.fakeFrameCanvas = document.createElement('canvas');
+                window.fakeFrameCanvas.width = 640;
+                window.fakeFrameCanvas.height = 480;
+            }
+        }
+        static getDynamicFrame() {
+            // Creates a noisy frame to trick static image detection
+            const canvas = document.createElement('canvas');
+            canvas.width = 640; canvas.height = 480;
+            const ctx = canvas.getContext('2d');
+
+            // Fill with dark base
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, 640, 480);
+
+            // Add subtle random noise (Anti-fingerprint for video feed)
+            const imageData = ctx.getImageData(0, 0, 640, 480);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const val = 10 + Math.random() * 20; // Dark grey noise
+                data[i] = val;     // R
+                data[i+1] = val;   // G
+                data[i+2] = val;   // B
+                data[i+3] = 255;   // Alpha
+            }
+            ctx.putImageData(imageData, 0, 0);
+            return canvas;
+        }
+        static getDynamicFrameData() {
+            return this.getDynamicFrame().toDataURL('image/jpeg', 0.85).split(';base64,')[1];
+        }
+    }
+
+    class SessionDataCollector {
+        static initialize() {
+            // Hooks remote video metadata to ensure we grab session info as early as possible
+            const observer = new MutationObserver((mutations) => {
+                const remoteVideo = document.getElementById('remoteVideo') || document.querySelector('video:not(#localVideo)');
+                if (remoteVideo && !remoteVideo.isHookedByUFix) {
+                    this.augmentMetadataHook(remoteVideo);
+                    remoteVideo.isHookedByUFix = true;
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
+
+        static augmentMetadataHook(remoteVideo) {
+            const originalOnLoadedMetadata = remoteVideo.onloadedmetadata;
+            remoteVideo.onloadedmetadata = (...args) => {
+                if (typeof originalOnLoadedMetadata === 'function') originalOnLoadedMetadata.apply(remoteVideo, args);
+                // This hook ensures the browser acknowledges the stream is active
+                console.log("[Ome-IP] Stream metadata loaded - Session Active");
+            };
+        }
+    }
+
+	// --- ENHANCED FINGERPRINT SPOOFING (PORTED) ---
+    class EnhancedUserPersona {
+        constructor() {
+            const platforms = ["Win32", "MacIntel", "Linux x86_64"];
+            this.platform = platforms[Math.floor(Math.random() * platforms.length)];
+            // Realistic hardware stats
+            this.hardwareConcurrency = [4, 8, 12, 16][Math.floor(Math.random() * 4)];
+            this.deviceMemory = [8, 16, 32][Math.floor(Math.random() * 3)];
+            this.userAgent = this.generateUserAgent();
+            // Randomize scroll length to look like a real user session
+            this.scrollLength = Math.floor(Math.random() * (40000 - 15000 + 1)) + 15000;
+        }
+
+        generateUserAgent() {
+            const version = Math.floor(Math.random() * (115 - 105 + 1)) + 105;
+            if (this.platform === 'Win32') {
+                return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version}.0.0.0 Safari/537.36`;
+            } else if (this.platform === 'MacIntel') {
+                return `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version}.0.0.0 Safari/537.36`;
+            } else {
+                return `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version}.0.0.0 Safari/537.36`;
+            }
+        }
+    }
+
+    const globalPersona = new EnhancedUserPersona();
+
+    function initializeFingerprintBypasses() {
+        if (!isFingerprintSpoofingEnabled) return;
+
+        try {
+            const spoofedProperties = {
+                webdriver: { value: false },
+                hardwareConcurrency: { value: globalPersona.hardwareConcurrency },
+                deviceMemory: { value: globalPersona.deviceMemory },
+                platform: { value: globalPersona.platform },
+                userAgent: { value: globalPersona.userAgent },
+                plugins: {
+                    get: new Proxy(function () { return [1, 2, 3]; }, {
+                        apply: (target, thisArg, args) => Reflect.apply(target, thisArg, args),
+                        get: (target, prop) => prop === 'length' ? 3 : target[prop],
+                        toString: () => 'function plugins() { [native code] }',
+                    })
+                }
+            };
+
+            const define = (obj, prop, descriptor) => {
+                Object.defineProperty(obj, prop, {
+                    ...descriptor,
+                    configurable: false,
+                    enumerable: true,
+                });
+            };
+
+            for (const prop in spoofedProperties) {
+                define(navigator, prop, spoofedProperties[prop]);
+            }
+
+            // --- Anti-Bot & Variance Bypasses ---
+            const secureDefine = (prop, value) => Object.defineProperty(window, prop, { value, writable: false, configurable: true });
+
+            secureDefine('calculateScrollLength', () => globalPersona.scrollLength);
+            secureDefine('setGIFSelector', async () => crypto.randomUUID().replace(/-/g, ''));
+            secureDefine('testGIF', async () => Math.random() * (150 - 50) + 50);
+            secureDefine('bypass', true);
+
+            // AFK Timer Bypass
+            window.setAfk = () => { clearTimeout(window.afkTimer); };
+            // Fake user activity to prevent timeouts
+            setInterval(() => { if (window.lastUserActivity) window.lastUserActivity = Date.now(); }, 60000);
+
+            console.log("[Ome-IP] Enhanced Fingerprint & Anti-Bot Bypasses Active");
+        } catch (e) {
+            console.log("[Ome-IP] Fingerprint init failed", e);
+        }
+    }
+
+
+   function initializeCorePrivacyBypasses() {
+        // 1. BroadcastChannel Bypass (Stops multi-tab detection)
+        if (window.BroadcastChannel) {
+            const originalBC = window.BroadcastChannel;
+            window.BroadcastChannel = new Proxy(originalBC, {
+                construct(target, [name]) {
+                    if (/^(tab|session|multitab-check)/i.test(name)) {
+                        console.log(`[Ome-IP] Blocked BroadcastChannel: ${name}`);
+                        // Return a dummy object that does nothing
+                        return {
+                            postMessage: () => { },
+                            close: () => { },
+                            onmessage: null,
+                            onerror: null,
+                            addEventListener: () => {}
+                        };
+                    }
+                    return new target(name);
+                }
+            });
+        }
+
+        // 2. Eval & Proxy Hooks (Stops Penalty Flags)
+        // This prevents the site from running code that sets 'isBlocked' variables
+        const originalEval = window.eval;
+        window.eval = (script) => {
+            if (typeof script === 'string' && (script.includes('FaceOverlay') || script.includes('blocked'))) {
+                console.log('[Ome-IP] 🛡️ Blocked Penalty Script execution');
+                return null;
+            }
+            return originalEval(script);
+        };
+
+        // 3. Prevent 'blocked' property from being set to true
+        let _blocked = false;
+        try {
+            Object.defineProperty(window, 'blocked', {
+                get: () => false,
+                set: (v) => { console.log("[Ome-IP] 🛡️ Prevented setting 'blocked' flag"); }
+            });
+        } catch(e) {} // Ignore if already defined
+
+        // 4. Hook Session End/Skip (Clean state management)
+        const wrap = (original, name) => function (...args) {
+            return typeof original === 'function' ? original.apply(this, args) : undefined;
+        };
+        if (window.onEnd) window.onEnd = wrap(window.onEnd, 'onEnd');
+        if (window.pressSkip) window.pressSkip = wrap(window.pressSkip, 'pressSkip');
+    }
+
+    // --- [NEW] PORTED uHELPER BYPASSES ---
+    function initializeGlobalFaceBypasses() {
+        // Helper to get a fake image data URL (white/static canvas)
+        const getFakeFrameData = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 640; canvas.height = 480;
+            const ctx = canvas.getContext('2d');
+            // Draw simple noise or black to pass "not empty" checks
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, 640, 480);
+            return canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+        };
+
+        // 1. Hook Global Snapshot Functions (uHelper Logic)
+        // We overwrite these to ensure they return safe data if the site calls them directly
+        const originalCapture = window.captureFrameToBase64;
+        Object.defineProperty(window, 'captureFrameToBase64', {
+            get: () => {
+                return isFaceProtectionEnabled ? () => getFakeFrameData() : originalCapture;
+            },
+            set: (val) => { /* Ignore site attempts to overwrite */ }
+        });
+
+        const originalMakeCanvas = window.makeLocalCanvas;
+        Object.defineProperty(window, 'makeLocalCanvas', {
+            get: () => {
+                return isFaceProtectionEnabled ? () => {
+                    const c = document.createElement('canvas');
+                    c.width = 640; c.height = 480;
+                    return c;
+                } : originalMakeCanvas;
+            },
+            set: (val) => { }
+        });
+
+        // 2. Hook Eval to stop FaceOverlay (uHelper Logic)
+        const originalEval = window.eval;
+        window.eval = function(str) {
+            if (isFaceProtectionEnabled && typeof str === 'string' && str.includes('FaceOverlay')) {
+                console.log("[Ome-IP] 🛡️ Blocked FaceOverlay via Eval");
+                return null;
+            }
+            return originalEval.apply(this, arguments);
+        };
+
+        // 3. Penalty Proxy (uHelper Logic)
+        // Prevents the site from setting any property like "isBlocked" to true
+        // We only apply this if it hasn't been applied yet to avoid recursion
+        if (!window.isPenaltyProxyActive) {
+            const penaltyHandler = {
+                set: function(target, prop, value) {
+                    if (isFaceProtectionEnabled && value === true && typeof prop === 'string' && prop.toLowerCase().includes('block')) {
+                        console.log(`[Ome-IP] 🛡️ Prevented Penalty Flag: ${prop}`);
+                        return true; // Lie and say it succeeded
+                    }
+                    target[prop] = value;
+                    return true;
+                }
+            };
+            // Note: We can't easily wrap 'window' in a Proxy, but we can catch properties defined on it
+            // if the site uses a specific global object for state.
+            // uHelper's implementation of 'window.Proxy = ...' is risky but effective for some frameworks.
+            // A safer approach for OmeTV/Umingle is usually sufficient with the Worker hook you already have.
+            window.isPenaltyProxyActive = true;
+        }
+
+        console.log("[Ome-IP] Global Face Bypasses Initialized");
+    }
+
+
+    // --- THUMBNAIL UTILITY ---
+    function captureVideoThumbnail() {
+        const videos = Array.from(document.querySelectorAll('video'));
+        const remoteVideo = videos.find(v => v.srcObject && v.videoWidth > 10 && v !== document.querySelector('#localVideo'));
+
+        if (!remoteVideo) return null;
+
+        try {
+            const canvas = document.createElement('canvas');
+
+            // [FIX] Dynamic Aspect Ratio to prevent squishing
+            // We set a fixed width of 160px and calculate height based on the video source
+            canvas.width = 160;
+            if (remoteVideo.videoWidth && remoteVideo.videoHeight) {
+                canvas.height = canvas.width * (remoteVideo.videoHeight / remoteVideo.videoWidth);
+            } else {
+                canvas.height = 90; // Fallback to 16:9 (160x90) if dimensions are missing
+            }
+
+            const ctx = canvas.getContext('2d');
+
+            // Draw
+            ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
+
+            // Compress heavily (JPEG 0.5 quality)
+            return canvas.toDataURL('image/jpeg', 0.5);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // --- CONFIGURATION ---
+    // 1. Define the Requested Defaults
+    const DEFAULT_VIDEO_LABELS = [
+        "Integrated Camera",
+        "USB Video Device",
+        "Integrated Webcam",
+        "Logi WebCam C920e"
+    ];
+
+    const DEFAULT_AUDIO_INPUT_LABELS = [
+        "Microphone Array",
+        "Yeti Stereo Microphone",
+        "Internal Microphone",
+        "Microphone (Realtek Audio)"
+    ];
+
+    const DEFAULT_AUDIO_OUTPUT_LABELS = [
+        "Realtek High Definition Audio",
+        "USB Audio Device",
+        "USB Headset",
+        "Logitech G Pro X Headset"
+    ];
+
+    const DEFAULT_CAM_NAME = DEFAULT_VIDEO_LABELS[0]; // Keep for compatibility
+
+    // --- CONFIGURATION ---
+    const FAKE_CONFIG = {
+        enabled: false,
+        forceRelay: false,
+        spoofDeviceNames: false,
+        oneCameraMode: false,
+        oneInputMode: false,
+        oneOutputMode: false,
+        udpStrict: false,
+
+        // [NEW] Features
+        rawAudio: true,        // Default ON
+        antiBanFrames: true,   // Default ON
+
+        // PREFILLED DEFAULTS
+        videoLabels: [...DEFAULT_VIDEO_LABELS],
+        audioInputLabels: [...DEFAULT_AUDIO_INPUT_LABELS],
+        audioOutputLabels: [...DEFAULT_AUDIO_OUTPUT_LABELS],
+
+        videoURL: GM_getValue('ome_fake_video_url', 'https://i.imgur.com/Bf7cILv.mp4'),
+        canvasSize: { width: 640, height: 480 },
+        spoofedDevices: []
+    };
+
+    // --- FIX: Global variable to track the animation loop ---
+    // Make sure this is defined with your other globals at the top
+    // let fakeCamAnimId = null;
+
+    // --- [UPDATED] ROBUST STREAM PROCESSOR (Better Cleanup) ---
+    async function createProcessedStream(sourceMedia, isFakeSource) {
+        // Stop any existing animation loop first
+        if (window.fakeCamAnimId) {
+            cancelAnimationFrame(window.fakeCamAnimId);
+            window.fakeCamAnimId = null;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = FAKE_CONFIG.canvasSize.width;
+        canvas.height = FAKE_CONFIG.canvasSize.height;
+        const ctx = canvas.getContext('2d', { alpha: false });
+
+        let videoElement;
+
+        if (isFakeSource) {
+            // Case 1: Fake Source (Video Element)
+            videoElement = sourceMedia;
+            try { await videoElement.play(); } catch (e) { console.error("Fake video play error", e); }
+        } else {
+            // Case 2: Real Source (Webcam Stream)
+            videoElement = document.createElement('video');
+            videoElement.srcObject = sourceMedia;
+            videoElement.muted = true;
+            videoElement.playsInline = true;
+            await videoElement.play();
+        }
+
+        function draw() {
+            // Only draw if the stream is active
+            if (videoElement.readyState >= 2 && window.fakeCamAnimId) {
+                if (FAKE_CONFIG.antiBanFrames) {
+                    // Jitter Logic
+                    const jX = (Math.random() - 0.5);
+                    const jY = (Math.random() - 0.5);
+
+                    if (Math.random() < 0.02) ctx.globalAlpha = 0.99;
+                    else ctx.globalAlpha = 1.0;
+
+                    ctx.drawImage(videoElement, jX, jY, canvas.width, canvas.height);
+                } else {
+                    ctx.globalAlpha = 1.0;
+                    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                }
+            }
+            window.fakeCamAnimId = requestAnimationFrame(draw);
+        }
+        // Start the loop and save the ID globally
+        window.fakeCamAnimId = requestAnimationFrame(draw);
+
+        const stream = canvas.captureStream(30);
+        const track = stream.getVideoTracks()[0];
+
+        // --- ENHANCED CLEANUP LOGIC ---
+        if (track) {
+            const originalStop = track.stop.bind(track);
+            track.stop = () => {
+                // 1. Stop the Jitter Animation Loop
+                if (window.fakeCamAnimId) {
+                    cancelAnimationFrame(window.fakeCamAnimId);
+                    window.fakeCamAnimId = null;
+                }
+
+                // 2. Cleanup The Source
+                if (isFakeSource) {
+                    // Stop the fake video file from playing/buffering in background
+                    try {
+                        videoElement.pause();
+                        videoElement.src = "";
+                        videoElement.load();
+                        videoElement.remove(); // Remove from DOM memory
+                    } catch(e) {}
+                } else {
+                    // Stop the Real Hardware Camera (Turn off the green light)
+                    if (sourceMedia.getVideoTracks) {
+                        sourceMedia.getVideoTracks().forEach(t => t.stop());
+                    }
+                    // Clean up the temporary video element used for processing
+                    videoElement.srcObject = null;
+                    videoElement.remove();
+                }
+
+                // 3. Stop the Canvas Stream Track
+                originalStop();
+            };
+        }
+        return stream;
+    }
+
+    // 2. Intercept getUserMedia (Audio & Video)
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+            const originalGUM = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getUserMedia = async function(constraints) {
+
+                // [NEW] Raw Audio Mode
+                if (FAKE_CONFIG.rawAudio && constraints && constraints.audio) {
+                    if (typeof constraints.audio !== 'object') constraints.audio = {};
+                    constraints.audio.echoCancellation = false;
+                    constraints.audio.noiseSuppression = false;
+                    constraints.audio.autoGainControl = false;
+                    console.log("[Ome-IP] Raw Audio Enabled (Processing Disabled)");
+                }
+
+                // SCENARIO 1: Fake Camera Enabled (Always processed)
+                if (FAKE_CONFIG.enabled && constraints && constraints.video) {
+                    console.log("[Ome-IP] Returning Fake Camera Stream");
+                    try {
+                        const video = document.createElement('video');
+                        video.src = FAKE_CONFIG.videoURL;
+                        video.crossOrigin = 'anonymous';
+                        video.loop = true;
+                        video.muted = true;
+                        video.playsInline = true;
+
+                        // Pass to processor as 'true' (isFakeSource)
+                        const fakeStream = await createProcessedStream(video, true);
+
+                        if (constraints.audio) {
+                            try {
+                                const audioStream = await originalGUM(constraints);
+                                audioStream.getAudioTracks().forEach(track => fakeStream.addTrack(track));
+                            } catch(e) { console.error("Audio fetch failed", e); }
+                        }
+                        return fakeStream;
+                    } catch (err) {
+                        return originalGUM(constraints);
+                    }
+                }
+
+                // SCENARIO 2: Real Camera + Anti-Ban Enabled (NEW LOGIC)
+                // If Fake Cam is OFF but AntiBan is ON, process the real webcam to add jitter.
+                else if (constraints && constraints.video && FAKE_CONFIG.antiBanFrames) {
+                    console.log("[Ome-IP] Returning Real Webcam with Anti-Ban Jitter");
+                    try {
+                        // 1. Get Real Webcam
+                        const realStream = await originalGUM(constraints);
+
+                        // 2. Pass to processor as 'false' (isFakeSource)
+                        const processedStream = await createProcessedStream(realStream, false);
+
+                        // 3. Ensure Audio is attached (if requested)
+                        const audioTracks = realStream.getAudioTracks();
+                        if (audioTracks.length > 0) {
+                            audioTracks.forEach(track => processedStream.addTrack(track));
+                        }
+
+                        return processedStream;
+                    } catch (err) {
+                        console.error("[Ome-IP] AntiBan processing failed, falling back to raw", err);
+                        return originalGUM(constraints);
+                    }
+                }
+
+                // SCENARIO 3: Standard (Raw Stream)
+                return originalGUM(constraints);
+            };
+        } catch (e) { console.log("GUM Hook Failed"); }
+    }
+
+
+    // 3. Spoof Device Enumeration (Video + Audio Input + Audio Output)
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const originalEnumerate = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);
+        navigator.mediaDevices.enumerateDevices = async function() {
+            let devices = [];
+
+            // STEP 1: Get Base List
+            if (FAKE_CONFIG.enabled) {
+                // Virtual Base List (If Fake Cam is ON)
+                devices = [
+                    { deviceId: "virt_mic_1", kind: "audioinput", label: "Virtual Mic", groupId: "virt_aud" },
+                    { deviceId: "virt_mic_2", kind: "audioinput", label: "Virtual Mic 2", groupId: "virt_aud" },
+                    { deviceId: "virt_spk_1", kind: "audiooutput", label: "Virtual Speaker", groupId: "virt_out" },
+                    { deviceId: "virt_cam_1", kind: "videoinput", label: "Virtual Camera", groupId: "virt_vid" }
+                ];
+            } else {
+                // Real Device List
+                devices = await originalEnumerate();
+            }
+
+            // STEP 2: Apply "One Mode" Filters
+            const filterDevices = (list, kind, isOneMode) => {
+                if (!isOneMode) return list;
+                let found = false;
+                return list.filter(d => {
+                    if (d.kind === kind) {
+                        if (!found) { found = true; return true; } // Keep first
+                        return false; // Discard rest
+                    }
+                    return true; // Keep other types
+                });
+            };
+
+            devices = filterDevices(devices, 'videoinput', FAKE_CONFIG.oneCameraMode);
+            devices = filterDevices(devices, 'audioinput', FAKE_CONFIG.oneInputMode);
+            devices = filterDevices(devices, 'audiooutput', FAKE_CONFIG.oneOutputMode);
+
+            // STEP 3: Apply Custom Labels
+            if (FAKE_CONFIG.spoofDeviceNames) {
+                let vidIdx = 0;
+                let micIdx = 0;
+                let spkIdx = 0;
+
+                devices = devices.map(d => {
+                    let newLabel = d.label;
+                    let shouldSpoof = false;
+
+                    if (d.kind === 'videoinput') {
+                        newLabel = FAKE_CONFIG.videoLabels[vidIdx++] || DEFAULT_CAM_NAME;
+                        shouldSpoof = true;
+                    } else if (d.kind === 'audioinput') {
+                        newLabel = FAKE_CONFIG.audioInputLabels[micIdx++] || "Default - Microphone";
+                        shouldSpoof = true;
+                    } else if (d.kind === 'audiooutput') {
+                        newLabel = FAKE_CONFIG.audioOutputLabels[spkIdx++] || "Default - Speakers";
+                        shouldSpoof = true;
+                    }
+
+                    if (shouldSpoof) {
+                        if (!newLabel || newLabel.trim() === "") newLabel = d.label; // Fallback to original if empty
+                        return {
+                            deviceId: d.deviceId, kind: d.kind, label: newLabel, groupId: d.groupId,
+                            toJSON: () => ({ ...d, label: newLabel, deviceId: d.deviceId, kind: d.kind })
+                        };
+                    }
+                    return d;
+                });
+            }
+
+            return devices;
+        };
+    }
+
+// --- UNIFIED WEBSOCKET PROXY ---
+    // Handles both IP Grabbing (JSON) and Report Protection (String scanning)
+    const OriginalWebSocket = window.WebSocket;
+    const UnifiedWebSocket = function(...args) {
+        const socket = new OriginalWebSocket(...args);
+
+        socket.addEventListener('message', (event) => {
+            const data = event.data;
+
+            // 1. Report Protection Logic (String Scan)
+            // Checks enabled flag loaded at start
+            if (isReportProtectionEnabled && typeof data === 'string') {
+                if (data.includes('ban') || data.includes('banned') || data.includes('rimage')) {
+                    console.log("[Ome-IP] 🛡️ Blocked Report/Ban Signal:", data);
+                    // Stop the event from reaching the site code
+                    event.stopImmediatePropagation();
+                    event.stopPropagation();
+                    // Dispatch event for UI notification
+                    window.dispatchEvent(new CustomEvent('ome-bypass-event', { detail: { type: 'report' } }));
+                    return;
+                }
+            }
+
+            // 2. IP Grabbing Logic (JSON Scan)
+            if (typeof data === 'string') {
+                try {
+                    // Only parse if it looks like JSON to save performance
+                    if (data.startsWith('{') || data.startsWith('[')) {
+                        const msg = JSON.parse(data);
+
+                        // Fallback IP Grabber (Signaling)
+                        if (msg.event === 'conn' && msg.candidates) {
+                             // [DEV LOG]
+                            let info = "ID: " + (msg.id || "N/A");
+                            if (msg.topics) info += " | Topics: " + msg.topics;
+                            logDev("RTC", "Partner Data: " + info);
+
+                            const srflx = msg.candidates.find(c => c && c.candidate && c.candidate.includes('typ srflx'));
+                            if (srflx) {
+                                const parts = srflx.candidate.split(' ');
+                                let signalingIP = parts[4];
+                                if (signalingIP && (signalingIP.includes('.') || signalingIP.includes(':'))) {
+                                    console.log("[Ome-IP] Fallback IP Found via Signaling:", signalingIP);
+                                    if (!currentIP || isRelayIP) {
+                                        currentIP = signalingIP;
+                                        isRelayIP = false;
+                                        currentRelayType = "Direct";
+                                        getLocation(currentIP);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }
+        });
+
+        return socket;
+    };
+
+    // Masking to make it look native
+    UnifiedWebSocket.prototype = OriginalWebSocket.prototype;
+    Object.defineProperty(UnifiedWebSocket, 'name', { value: 'WebSocket' });
+    Object.defineProperty(UnifiedWebSocket, 'toString', {
+        value: function() { return OriginalWebSocket.toString(); },
+        writable: true, configurable: true
+    });
+
+    window.WebSocket = UnifiedWebSocket;
 
     function makeDraggable(triggerElement, movingElement) {
         let isDragging = false;
@@ -389,6 +1101,85 @@
         document.addEventListener('mouseup', onMouseUp);
     }
 
+	function makeResizable(div) {
+        const createHandle = (cls, type) => {
+            const h = document.createElement('div');
+            h.className = `ome-resize-handle ${cls}`;
+            div.appendChild(h);
+
+            h.addEventListener('mousedown', (e) => {
+                e.stopPropagation(); // Prevent drag logic
+                e.preventDefault(); // Prevent text selection
+
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startRect = div.getBoundingClientRect();
+                const startW = startRect.width;
+                const startH = startRect.height;
+                const startTop = startRect.top;
+                const startLeft = startRect.left;
+
+                const onMove = (evt) => {
+                    const dx = evt.clientX - startX;
+                    const dy = evt.clientY - startY;
+
+                    // Enforce Minimums (must match minWidth/minHeight in createLogWindow)
+                    const minW = 320;
+                    const minH = 280;
+
+                    let newW = startW, newH = startH, newTop = startTop, newLeft = startLeft;
+
+                    // East (Right)
+                    if (type.includes('e')) {
+                        newW = startW + dx;
+                    }
+                    // South (Bottom)
+                    if (type.includes('s')) {
+                        newH = startH + dy;
+                    }
+                    // West (Left) - Requires moving 'left' and changing 'width'
+                    if (type.includes('w')) {
+                        if (startW - dx >= minW) {
+                            newW = startW - dx;
+                            newLeft = startLeft + dx;
+                        }
+                    }
+                    // North (Top) - Requires moving 'top' and changing 'height'
+                    if (type.includes('n')) {
+                        if (startH - dy >= minH) {
+                            newH = startH - dy;
+                            newTop = startTop + dy;
+                        }
+                    }
+
+                    // Apply
+                    if (newW >= minW) {
+                        div.style.width = `${newW}px`;
+                        if (type.includes('w')) div.style.left = `${newLeft}px`;
+                    }
+                    if (newH >= minH) {
+                        div.style.height = `${newH}px`;
+                        if (type.includes('n')) div.style.top = `${newTop}px`;
+                    }
+                };
+
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        };
+
+        createHandle('ome-rh-nw', 'nw');
+        createHandle('ome-rh-ne', 'ne');
+        createHandle('ome-rh-sw', 'sw');
+        createHandle('ome-rh-se', 'se');
+    }
+
+
     // --- REPORT SOUND & WITTY REMARKS ---
     function triggerReportSound() {
         const lines = [
@@ -420,38 +1211,153 @@
         }
     }
 
+
+    function showReportPopup() {
+        const id = "ome-report-alert-overlay";
+        if (document.getElementById(id)) return;
+
+        const div = document.createElement("div");
+        div.id = id;
+        Object.assign(div.style, {
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            backgroundColor: "rgba(255, 0, 0, 0.9)",
+            color: "white",
+            padding: "20px 40px",
+            borderRadius: "15px",
+            border: "4px solid #fff",
+            boxShadow: "0 0 50px rgba(255, 0, 0, 1)",
+            zIndex: "100000100",
+            textAlign: "center",
+            fontFamily: "Impact, sans-serif",
+            pointerEvents: "none"
+        });
+
+        div.innerHTML = `
+            <div style="font-size: 48px; letter-spacing: 2px;">⚠️ REPORT DETECTED ⚠️</div>
+            <div style="font-size: 24px; margin-top: 10px; font-family: sans-serif; font-weight: bold;">
+                Block Intercepted. Skipping to Safety...
+            </div>
+        `;
+
+        document.body.appendChild(div);
+
+        // Remove the popup after 2 seconds
+        setTimeout(() => {
+            if (div) div.remove();
+        }, 2000);
+    }
+
+
     function updateStatusDots() {
         const ipDot = document.getElementById('status-dot-ipgrab');
         const faceDot = document.getElementById('status-dot-face');
         const reportDot = document.getElementById('status-dot-report');
+        const countryDot = document.getElementById('status-dot-country');
+        const ipBlockDot = document.getElementById('status-dot-ipblock');
+        const camDot = document.getElementById('status-dot-camera');
+        const relayDot = document.getElementById('status-dot-relay');
+        const spoofDot = document.getElementById('status-dot-spoof');
+        const fingerprintDot = document.getElementById('status-dot-fingerprint');
+        const udpDot = document.getElementById('status-dot-udp');
+        const ghostDot = document.getElementById('status-dot-ghost');
+        const rawAudioDot = document.getElementById('status-dot-raw-audio');
+        const antiBanDot = document.getElementById('status-dot-antiban');
+        const antiBotDot = document.getElementById('status-dot-antibot'); // [NEW]
 
-        // Helper to apply the "New Look" style dynamically
         const applyStyle = (el, isActive, type) => {
             if (!el) return;
-            const color = isActive ? "#00FF00" : "#FF0000";
-            el.style.backgroundColor = "rgba(0,0,0,0.5)";
-            el.style.boxShadow = isActive ? `0 0 8px ${color}` : "none";
-            el.style.borderColor = isActive ? color : "#888";
 
-            if (type === 'ip') el.title = isActive ? "IP Grabbing: ON (Click to Stop)" : "IP Grabbing: OFF (Click to Start)";
-            if (type === 'face') el.title = isActive ? `Face Bypass: Active\nFaces Spoofed: ${facesDetectedCount}\n(Click to Disable)` : "Face Bypass: DISABLED\n(Click to Enable)";
-            if (type === 'report') {
-                const rColor = isReportProtectionEnabled ? (isWsProtectionActive ? "#00FF00" : "#FFA500") : "#FF0000";
-                const rActive = isReportProtectionEnabled;
-                el.style.borderColor = rActive ? rColor : "#888";
-                el.style.boxShadow = (rActive && reportsBlockedCount > 0) ? `0 0 8px ${rColor}` : (rActive ? `0 0 5px ${rColor}` : "none");
-                el.title = rActive ? `Report Protection: ${isWsProtectionActive ? "Active" : "Loading..."}\nReports Blocked: ${reportsBlockedCount}\n(Click to Disable)` : "Report Protection: DISABLED\n(Click to Enable)";
+            // Default Colors (Green/Red)
+            let color = isActive ? "#00FF00" : "#FF0000";
+            let boxShadow = isActive ? `0 0 8px ${color}` : `0 0 3px ${color}`;
+            let borderColor = color;
+
+            // [UPDATED] Background Color Logic
+            let bgColor = isWindowTransparent ? "rgba(0,0,0,0.1)" : "#000000";
+
+            // --- SPECIAL GHOST MODE STYLE (Bright White) ---
+            if (type === 'ghost') {
+                borderColor = isActive ? "#FFFFFF" : "#888";
+                if (isActive) {
+                    color = "#FFFFFF";
+                    boxShadow = "0 0 15px #FFFFFF, 0 0 5px #FFFFFF";
+                    bgColor = "rgba(255,255,255,0.2)";
+                } else {
+                    boxShadow = "none";
+                }
             }
+
+            // --- YELLOW GLOW GROUP (UDP, FAKE CAM, RELAY, SPOOF, JITTER) ---
+            if ((type === 'udp' || type === 'camera' || type === 'relay' || type === 'spoof' || type === 'antiban') && isActive) {
+                color = "#FFD700"; // Gold
+                boxShadow = "0 0 10px #FFD700";
+                borderColor = "#FFD700";
+            }
+
+            el.style.backgroundColor = bgColor;
+            el.style.boxShadow = boxShadow;
+            el.style.borderColor = borderColor;
+
+            // Handle Icon Animation (Jiggle)
+            const iconSpan = el.querySelector(".ome-icon-span");
+            if (iconSpan) {
+                if (isActive) iconSpan.classList.add("ome-anim-jiggle");
+                else iconSpan.classList.remove("ome-anim-jiggle");
+            }
+
+            // Tooltips
+            if (type === 'ipgrab') el.title = isActive ? "IP Grabbing: ON" : "IP Grabbing: OFF";
+            if (type === 'face') el.title = isActive ? `Face Bypass: Active (${facesDetectedCount})` : "Face Bypass: DISABLED";
+            if (type === 'report') el.title = isActive ? `Report Protection: Active (${reportsBlockedCount})` : "Report Protection: DISABLED";
+            if (type === 'country') el.title = isActive ? "Country Blocking: ON" : "Country Blocking: OFF";
+            if (type === 'ipblock') el.title = isActive ? "IP Blocking: ON" : "IP Blocking: OFF";
+            if (type === 'camera') el.title = isActive ? "Fake Cam: ON" : "Fake Cam: OFF";
+            if (type === 'relay') el.title = isActive ? "Force Relay: ON" : "Force Relay: OFF";
+            if (type === 'spoof') el.title = isActive ? "Device Labeling: ON" : "Device Labeling: OFF";
+            if (type === 'fingerprint') el.title = isActive ? "Fingerprint Spoofing: ON" : "Fingerprint Spoofing: OFF";
+            if (type === 'udp') el.title = isActive ? "Strict UDP: ON (Blocks P2P)" : "Strict UDP: OFF";
+            if (type === 'ghost') el.title = isActive ? "Ghost Mode: ON" : "Ghost Mode: OFF";
+            if (type === 'rawaudio') el.title = isActive ? "Raw Audio: ON (No Suppression)" : "Raw Audio: OFF (Default)";
+            if (type === 'antiban') el.title = isActive ? "Anti-Ban Frames: ON (Dynamic Jitter)" : "Anti-Ban Frames: OFF (Static)";
+            if (type === 'antibot') el.title = isActive ? "Anti-Bot Bypass: ON" : "Anti-Bot Bypass: OFF";
         };
 
-        applyStyle(ipDot, isIPGrabbingEnabled, 'ip');
+        // Apply styles to all dots
+        applyStyle(ipDot, isIPGrabbingEnabled, 'ipgrab');
         applyStyle(faceDot, isFaceProtectionEnabled, 'face');
         applyStyle(reportDot, isReportProtectionEnabled, 'report');
+        applyStyle(countryDot, countryBlockingEnabled, 'country');
+        applyStyle(ipBlockDot, ipBlockingEnabled, 'ipblock');
+        applyStyle(camDot, FAKE_CONFIG.enabled, 'camera');
+        applyStyle(relayDot, FAKE_CONFIG.forceRelay, 'relay');
+        applyStyle(spoofDot, FAKE_CONFIG.spoofDeviceNames, 'spoof');
+        applyStyle(fingerprintDot, isFingerprintSpoofingEnabled, 'fingerprint');
+        applyStyle(udpDot, FAKE_CONFIG.udpStrict, 'udp');
+        applyStyle(ghostDot, isWindowTransparent, 'ghost');
+        applyStyle(rawAudioDot, FAKE_CONFIG.rawAudio, 'rawaudio');
+        applyStyle(antiBanDot, FAKE_CONFIG.antiBanFrames, 'antiban');
+        applyStyle(antiBotDot, isAntiBotEnabled, 'antibot'); // [NEW]
 
-        // [NEW] Sync Advanced Settings Toggles
+        // Sync Advanced Settings...
         updateAdvToggleVisual("adv-toggle-ip-grab", isIPGrabbingEnabled);
         updateAdvToggleVisual("adv-toggle-face-bypass", isFaceProtectionEnabled);
         updateAdvToggleVisual("adv-toggle-report-prot", isReportProtectionEnabled);
+        updateAdvToggleVisual("adv-toggle-country-block", countryBlockingEnabled);
+        updateAdvToggleVisual("adv-toggle-ip-block", ipBlockingEnabled);
+        updateAdvToggleVisual("adv-toggle-fake-cam", FAKE_CONFIG.enabled);
+        updateAdvToggleVisual("adv-toggle-force-relay", FAKE_CONFIG.forceRelay);
+        updateAdvToggleVisual("adv-toggle-device-spoof", FAKE_CONFIG.spoofDeviceNames);
+        updateAdvToggleVisual("adv-toggle-fingerprint", isFingerprintSpoofingEnabled);
+        updateAdvToggleVisual("adv-toggle-udp-strict", FAKE_CONFIG.udpStrict);
+        updateAdvToggleVisual("adv-toggle-raw-audio", FAKE_CONFIG.rawAudio);
+        updateAdvToggleVisual("adv-toggle-antiban", FAKE_CONFIG.antiBanFrames);
+        updateAdvToggleVisual("adv-toggle-antibot", isAntiBotEnabled); // [NEW]
+
+        updateSettingSwitch("setting-toggle-ip", ipBlockingEnabled, "🛡️ IP Blocking");
+        updateSettingSwitch("setting-toggle-country", countryBlockingEnabled, "🌍 Country Blocking");
     }
 
     function safe(str) {
@@ -483,7 +1389,7 @@
         }
     }
 
-    function showToast(msg, parentWin = null) {
+    function showToast(msg, parentWin = null, bgColor = null) {
         const win = parentWin || document.getElementById("ip-log-window");
         if (!win) return;
         let toast = win.querySelector('.ome-toast');
@@ -493,47 +1399,44 @@
             win.appendChild(toast);
         }
         toast.innerText = msg;
+        // Apply custom color if provided, else default orange
+        toast.style.backgroundColor = bgColor || "rgba(255, 140, 0, 0.85)";
+
         toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 1500);
+        // Reset color after hide to prevent stuck colors
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 1500);
     }
 
-    // --- FETCH OWN IP ---
+    // --- FETCH OWN IP (Fixed with GM_xmlhttpRequest) ---
     function fetchOwnIP() {
         GM_xmlhttpRequest({
             method: "GET",
-            // Switch to ip-api.com which is used elsewhere in your script and is often more reliable
-            url: "http://ip-api.com/json/?fields=status,message,country,countryCode,regionName,city,query",
+            url: "https://ipwho.is/",
             onload: function(response) {
-                if (response.status === 200) {
-                    try {
-                        const json = JSON.parse(response.responseText);
-                        // ip-api uses "status": "success" instead of "success": true
-                        if (json.status === 'success') {
-                            // Map fields to match what updateSettingsHeaderDisplay expects
-                            myOwnIPData = {
-                                ip: json.query,
-                                country_code: json.countryCode,
-                                country: json.country,
-                                region: json.regionName || json.city,
-                                city: json.city
-                            };
-
-                            logDev("SYS", `Own IP Fetched: ${json.query}`);
-
-                            // Update UI if element exists (in Advanced Window)
-                            const headerContent = document.getElementById("ome-settings-header-content");
-                            if(headerContent) updateSettingsHeaderDisplay(headerContent);
-                        } else {
-                            logDev("ERR", "Own IP Fetch Failed: " + json.message);
-                        }
-                    } catch(e) {
-                        logDev("ERR", "Own IP Parse Error");
+                try {
+                    const json = JSON.parse(response.responseText);
+                    if (json.success) {
+                        myOwnIPData = {
+                            ip: json.ip,
+                            country_code: json.country_code,
+                            country: json.country,
+                            region: json.region || json.city,
+                            city: json.city
+                        };
+                        logDev("SYS", `Own IP Fetched: ${json.ip}`);
+                        const headerContent = document.getElementById("ome-settings-header-content");
+                        if(headerContent) updateSettingsHeaderDisplay(headerContent);
+                    } else {
+                        logDev("ERR", "Own IP Fetch Failed");
                     }
+                } catch (e) {
+                    logDev("ERR", "Own IP Parse Error");
                 }
             },
             onerror: function() {
-                // If it fails entirely, set a fallback so it doesn't say "Fetching..." forever
-                myOwnIPData = { ip: "Unavailable", country_code: "un", region: "Connection Error" };
+                myOwnIPData = { ip: "Unavailable", country_code: "un", region: "Net Error" };
                 const headerContent = document.getElementById("ome-settings-header-content");
                 if(headerContent) updateSettingsHeaderDisplay(headerContent);
             }
@@ -544,47 +1447,66 @@
 
     function checkAndPruneStorage() {
         if (!ipHistoryCache) return;
+
         const keys = Object.keys(ipHistoryCache);
+
+        // PERFORMANCE FIX: Only run the heavy sort/prune if we are OVER the limit.
+        // Otherwise, skip this entirely to make saving instant.
         if (keys.length > MAX_HISTORY_ITEMS) {
-            const sortedEntries = Object.entries(ipHistoryCache).sort(([,a], [,b]) => b.lastSeen - a.lastSeen);
+            const sortedEntries = Object.entries(ipHistoryCache).sort(([,a], [,b]) => (b.lastSeen || 0) - (a.lastSeen || 0));
             const keepEntries = sortedEntries.slice(0, KEEP_NEWEST_ITEMS);
+
+            // Rebuild object
             ipHistoryCache = {};
             keepEntries.forEach(([ip, data]) => ipHistoryCache[ip] = data);
             isDirty = true;
-            forceSave();
+        }
+
+        // Check screenshots separately (Only if we have a lot of items)
+        if (keys.length > 50) {
+            const entriesWithThumbs = Object.entries(ipHistoryCache).filter(([, data]) => data.thumb);
+            const MAX_SCREENSHOTS = 50;
+
+            if (entriesWithThumbs.length > MAX_SCREENSHOTS) {
+                // Sort only the thumbs (smaller list)
+                entriesWithThumbs.sort(([,a], [,b]) => (b.lastSeen || 0) - (a.lastSeen || 0));
+                const toRemove = entriesWithThumbs.slice(MAX_SCREENSHOTS);
+
+                toRemove.forEach(([ip]) => {
+                    delete ipHistoryCache[ip].thumb;
+                });
+                isDirty = true;
+                console.log(`[Ome-IP] Pruned ${toRemove.length} old screenshots.`);
+            }
         }
     }
 
     function loadData() {
+        // --- 1. Load History ---
         if (!ipHistoryCache) {
             try { ipHistoryCache = JSON.parse(GM_getValue('ome_ip_history', '{}')); }
             catch (e) { ipHistoryCache = {}; }
         }
+
+        // --- 2. Load Blocked IPs ---
         if (!blockedIPsCache) {
             try { blockedIPsCache = new Set(JSON.parse(GM_getValue('ome_blocked_ips', '[]'))); }
             catch (e) { blockedIPsCache = new Set(); }
         }
+
+        // --- 3. Load Blocked Countries ---
         if (!blockedCountriesCache) {
             const rawCountries = GM_getValue('ome_blocked_countries', null);
             if (rawCountries === null) {
                 blockedCountriesCache = new Set(DEFAULT_BLOCKED_COUNTRIES);
-                isDirty = true;
             } else {
                 try { blockedCountriesCache = new Set(JSON.parse(rawCountries)); }
                 catch (e) { blockedCountriesCache = new Set(); }
             }
-            countryBlockingEnabled = GM_getValue('ome_country_blocking_enabled', false);
-            ipBlockingEnabled = GM_getValue('ome_ip_blocking_enabled', true);
         }
 
-        // Load UI States
-        isDarkModeActive = GM_getValue('ome_dark_mode_active', false);
-        areWatermarksHidden = isDarkModeActive; // Sync these for now as per request
-        try { customHiddenSelectors = new Set(JSON.parse(GM_getValue('ome_custom_hidden', '[]'))); }
-        catch (e) { customHiddenSelectors = new Set(); }
-
-        try { customBlackoutSelectors = new Set(JSON.parse(GM_getValue('ome_custom_blackout', '[]'))); }
-        catch (e) { customBlackoutSelectors = new Set(); }
+        // REMOVE ALL THE FAKE_CONFIG / LABEL LOADING CODE FROM HERE
+        // IT IS ALREADY HANDLED IN loadSettings()
 
         return { history: ipHistoryCache, blockedIPs: blockedIPsCache, blockedCountries: blockedCountriesCache };
     }
@@ -595,72 +1517,212 @@
         saveTimeout = setTimeout(forceSave, 2000);
     }
 
+    // --- OPTIMIZED STORAGE LOGIC ---
+
+    // 1. Lightweight saver for toggles (Runs instantly)
+    function saveCoreSettings() {
+        GM_setValue('ome_country_blocking_enabled', countryBlockingEnabled);
+        GM_setValue('ome_ip_blocking_enabled', ipBlockingEnabled);
+        GM_setValue('ome_dark_mode_active', isDarkModeActive);
+        GM_setValue('ome_ip_grabbing', isIPGrabbingEnabled);
+        GM_setValue('ome_face_protection', isFaceProtectionEnabled);
+        GM_setValue('ome_report_protection', isReportProtectionEnabled);
+        GM_setValue('ome_force_relay', FAKE_CONFIG.forceRelay);
+        GM_setValue('ome_fake_cam_enabled', FAKE_CONFIG.enabled);
+        GM_setValue('ome_spoof_devices', FAKE_CONFIG.spoofDeviceNames);
+        GM_setValue('ome_fingerprint_spoofing', isFingerprintSpoofingEnabled);
+        GM_setValue('ome_anti_bot', isAntiBotEnabled);
+
+        // [FIXED] Added missing keys so they save correctly
+        GM_setValue('ome_raw_audio', FAKE_CONFIG.rawAudio);
+        GM_setValue('ome_antiban_frames', FAKE_CONFIG.antiBanFrames);
+        GM_setValue('ome_udp_strict', FAKE_CONFIG.udpStrict);
+    }
+
+    // 2. Heavy saver for History/Lists
     function forceSave() {
+        // Save core settings first (Fast)
+        saveCoreSettings();
+
+        // Only save heavy data objects if they have changed (isDirty)
         if (isDirty) {
             checkAndPruneStorage();
             if (ipHistoryCache) GM_setValue('ome_ip_history', JSON.stringify(ipHistoryCache));
             if (blockedIPsCache) GM_setValue('ome_blocked_ips', JSON.stringify([...blockedIPsCache]));
             if (blockedCountriesCache) GM_setValue('ome_blocked_countries', JSON.stringify([...blockedCountriesCache]));
-            GM_setValue('ome_country_blocking_enabled', countryBlockingEnabled);
-            GM_setValue('ome_ip_blocking_enabled', ipBlockingEnabled);
-            GM_setValue('ome_dark_mode_active', isDarkModeActive);
             GM_setValue('ome_custom_hidden', JSON.stringify([...customHiddenSelectors]));
             GM_setValue('ome_custom_blackout', JSON.stringify([...customBlackoutSelectors]));
             isDirty = false;
         }
     }
 
+    // [NEW] Task 2: Reset Settings Only (Keeps Data)
+    function resetSettingsOnly() {
+        if (!confirm("Reset ALL Settings to Defaults?\n(History, Blocked IPs, and Notes will be SAFE)")) return;
+
+        // [ON by Default]
+        ipBlockingEnabled = true;
+        
+        // FIX: Changed from true to false
+        isDarkModeActive = false;
+        areWatermarksHidden = false;
+
+        isIPGrabbingEnabled = true;
+        isFaceProtectionEnabled = true;
+        isReportProtectionEnabled = true;
+        isFingerprintSpoofingEnabled = true;
+        isAntiBotEnabled = true;
+
+        // [OFF by Default]
+        countryBlockingEnabled = false;
+        FAKE_CONFIG.enabled = false;     // Fake Cam
+        FAKE_CONFIG.udpStrict = false;   // UDP Only
+        FAKE_CONFIG.forceRelay = false;
+        FAKE_CONFIG.spoofDeviceNames = false;
+        FAKE_CONFIG.rawAudio = false;
+        FAKE_CONFIG.antiBanFrames = false;
+
+        // One Mode (Synced to Spoof)
+        FAKE_CONFIG.oneCameraMode = false;
+        FAKE_CONFIG.oneInputMode = false;
+        FAKE_CONFIG.oneOutputMode = false;
+
+        // Save to Storage
+        saveCoreSettings();
+        GM_setValue('ome_one_cam_mode', false);
+        GM_setValue('ome_one_input_mode', false);
+        GM_setValue('ome_one_output_mode', false);
+        GM_setValue('ome_ghost_mode', false);
+
+        // Update UI
+        updateMasterToggles();
+        
+        // FIX: Apply the new 'false' state
+        toggleWatermarks(false);
+        updateStatusDots();
+
+        showToast("Settings Reset to New Defaults");
+        setTimeout(() => location.reload(), 1000);
+    }
+
     function clearAllData() {
-        if (!confirm("⚠️ DANGER: CLEAR ALL DATA? ⚠️\n\nThis will wipe:\n- All Blocked IPs\n- All History/Notes\n- Custom Hidden Elements\n- All Settings & Preferences\n\nThis cannot be undone.")) return;
+        if (!confirm("⚠️ DANGER: CLEAR ALL DATA? ⚠️\n\nThis will wipe:\n- All Blocked IPs\n- All History/Notes\n- Custom Hidden Elements\n- All Settings Back to Default\n\nThis cannot be undone.")) return;
+
+        // 1. Reset Storage Objects
         ipHistoryCache = {};
         blockedIPsCache = new Set();
         blockedCountriesCache = new Set(DEFAULT_BLOCKED_COUNTRIES);
         customHiddenSelectors = new Set();
         customBlackoutSelectors = new Set();
 
-        countryBlockingEnabled = false;
+        // 2. Reset Config Defaults
         ipBlockingEnabled = true;
-        isDarkModeActive = false; // Reset dark mode
+        
+        // FIX: Changed from true to false
+        isDarkModeActive = false;
+        
         currentCountrySort = 'az';
+        isWindowTransparent = false;
 
+        isIPGrabbingEnabled = true;
+        isFaceProtectionEnabled = true;
+        isReportProtectionEnabled = true;
+        isFingerprintSpoofingEnabled = true;
+        isAntiBotEnabled = true;
+
+        // [OFF Defaults]
+        countryBlockingEnabled = false;
+        FAKE_CONFIG.enabled = false;
+        FAKE_CONFIG.udpStrict = false;
+        FAKE_CONFIG.forceRelay = false;
+        FAKE_CONFIG.spoofDeviceNames = false;
+        FAKE_CONFIG.rawAudio = false;
+        FAKE_CONFIG.antiBanFrames = false;
+
+        FAKE_CONFIG.oneCameraMode = false;
+        FAKE_CONFIG.oneInputMode = false;
+        FAKE_CONFIG.oneOutputMode = false;
+
+        FAKE_CONFIG.videoURL = 'https://i.imgur.com/Bf7cILv.mp4';
+
+        // RESET LABELS
+        FAKE_CONFIG.videoLabels = [...DEFAULT_VIDEO_LABELS];
+        FAKE_CONFIG.audioInputLabels = [...DEFAULT_AUDIO_INPUT_LABELS];
+        FAKE_CONFIG.audioOutputLabels = [...DEFAULT_AUDIO_OUTPUT_LABELS];
+
+        // 3. Save to Memory (WIPE EVERYTHING)
         GM_setValue('ome_custom_blackout', '[]');
         GM_setValue('ome_ip_history', '{}');
         GM_setValue('ome_blocked_ips', '[]');
         GM_setValue('ome_blocked_countries', JSON.stringify([...blockedCountriesCache]));
         GM_setValue('ome_custom_hidden', '[]');
-        GM_setValue('ome_country_blocking_enabled', false);
-        GM_setValue('ome_ip_blocking_enabled', true);
-        GM_setValue('ome_dark_mode_active', false);
 
-        isDirty = true;
-        forceSave();
+        // SAVE NEW DEFAULTS
+        GM_setValue('ome_country_blocking_enabled', true);
+        GM_setValue('ome_ip_blocking_enabled', true);
+        
+        // FIX: Explicitly save false
+        GM_setValue('ome_dark_mode_active', false);
+        
+        GM_setValue('ome_ghost_mode', false);
+
+        GM_setValue('ome_ip_grabbing', true);
+        GM_setValue('ome_face_protection', true);
+        GM_setValue('ome_report_protection', true);
+        GM_setValue('ome_fingerprint_spoofing', true);
+        GM_setValue('ome_anti_bot', true);
+
+        GM_setValue('ome_fake_cam_enabled', false); // Exception
+        GM_setValue('ome_udp_strict', false);       // Exception
+
+        GM_setValue('ome_force_relay', true);
+        GM_setValue('ome_spoof_devices', true);
+        GM_setValue('ome_fake_video_url', FAKE_CONFIG.videoURL);
+
+        GM_setValue('ome_raw_audio', true);
+        GM_setValue('ome_antiban_frames', true);
+
+        GM_setValue('ome_one_cam_mode', true);
+        GM_setValue('ome_one_input_mode', true);
+        GM_setValue('ome_one_output_mode', true);
+
+        GM_setValue('ome_video_labels', JSON.stringify(FAKE_CONFIG.videoLabels));
+        GM_setValue('ome_audio_input_labels', JSON.stringify(FAKE_CONFIG.audioInputLabels));
+        GM_setValue('ome_audio_output_labels', JSON.stringify(FAKE_CONFIG.audioOutputLabels));
+
+        // 4. Update UI
+        isDirty = false;
         updateMasterToggles();
-        toggleWatermarks(false); // Turn off visuals
+        
+        // FIX: Apply the new 'false' state
+        toggleWatermarks(false);
         refreshStatsWindowDisplay(currentIP, null, currentApiData);
-        const settingsWin = document.getElementById("ome-settings-window");
-        if (settingsWin && settingsWin.style.display === "flex") switchTab('tab-countries');
-        alert("✅ All Data Cleared & Reset.");
+
+        alert("✅ All Data Cleared & Reset to New Defaults.");
+        location.reload();
     }
 
     // --- SMART SKIP LOGIC ---
     function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
     function pressEscape() {
+        // Only dispatch to the active element (or body).
+        // The event will bubble up naturally, so we don't need to dispatch to document as well.
+        const target = document.activeElement || document.body;
+
         const down = new KeyboardEvent('keydown', {
             key: 'Escape', code: 'Escape',
             keyCode: 27, which: 27,
             bubbles: true, cancelable: true, composed: true
         });
-        document.dispatchEvent(down);
-        if (document.activeElement) document.activeElement.dispatchEvent(down);
+        target.dispatchEvent(down);
 
         const up = new KeyboardEvent('keyup', {
             key: 'Escape', code: 'Escape',
             keyCode: 27, which: 27,
             bubbles: true, cancelable: true, composed: true
         });
-        document.dispatchEvent(up);
-        if (document.activeElement) document.activeElement.dispatchEvent(up);
+        target.dispatchEvent(up);
     }
 
     function getSiteType() {
@@ -668,6 +1730,7 @@
         if (host.includes('ome.tv')) return 'ometv';
         if (host.includes('umingle')) return 'umingle';
         if (host.includes('omegleapp')) return 'omegleapp';
+        if (host.includes('omegleweb')) return 'omegleweb'; // <--- ADDED THIS
         return 'other';
     }
 
@@ -719,13 +1782,18 @@
     }
 
     async function performSmartSkip(reason) {
+        // [NEW] Prevent Auto-Skipping if IP Grabber is OFF
+        // We allow "Manual" reasons (Buttons) to pass through.
+        if (!isIPGrabbingEnabled && !reason.startsWith("Manual")) {
+            return;
+        }
+
         const now = Date.now();
-        const COOLDOWN = 2000;
+        const COOLDOWN = 1000;
         const timeSinceLast = now - lastSkipTime;
 
         if (timeSinceLast < COOLDOWN) {
             const waitTime = COOLDOWN - timeSinceLast;
-            logDev("SKIP", `Cooling down... waiting ${waitTime}ms`);
             await delay(waitTime);
         }
 
@@ -733,9 +1801,26 @@
         logDev("SKIP", `${reason} (${getSiteType()})`);
 
         const site = getSiteType();
+
+        // 1. Ome.tv (Click Logic)
         if (site === 'ometv') { await clickGenericNextBtn(); return; }
-        if (site === 'umingle') { pressEscape(); return; }
-        if (site === 'omegleapp') { pressEscape(); return; }
+
+        // 2. Umingle (Double Escape Logic)
+        // Presses ESC once to disconnect, waits 150ms, then presses again to find new partner
+        if (site === 'umingle') {
+            pressEscape();
+            await delay(150);
+            pressEscape();
+            return;
+        }
+
+        // 3. OmegleApp & OmegleWeb (Single Escape Logic)
+        if (site === 'omegleapp' || site === 'omegleweb') {
+            pressEscape();
+            return;
+        }
+
+        // 4. Fallback for unknown sites
         await performFallbackSkip();
     }
 
@@ -778,6 +1863,9 @@
     }
 
     function checkAndSkipIfBlocked(ip, countryCode) {
+        // [NEW] Exit immediately if IP Grabber is OFF
+        if (!isIPGrabbingEnabled) return;
+
         if (isRelayIP) return;
         const { blockedIPs, blockedCountries } = loadData();
         let shouldSkip = false, reason = "";
@@ -806,58 +1894,62 @@
 
     // --- WATERMARK TOGGLE ---
     function toggleWatermarks(forceState = null) {
-        if (forceState !== null) isDarkModeActive = forceState;
-        else isDarkModeActive = !isDarkModeActive;
+        areWatermarksHidden = forceState !== null ? forceState : !areWatermarksHidden;
+        isDarkModeActive = areWatermarksHidden;
+        GM_setValue('ome_dark_mode_active', isDarkModeActive);
 
-        const body = document.body;
+        // Visual update for menu button (Request #5: White/Grey Glow logic)
         const wmBtn = document.getElementById("watermark-toggle-btn");
-
-        // Apply Dark Mode Class
-        if (isDarkModeActive) {
-            body.classList.add('ome-dark-mode');
-            showToast("Dark Mode ON");
-
-            // --- BLOODSHOT EFFECT (Active) ---
-            if (wmBtn) {
-                wmBtn.style.borderColor = "#FF0000";          // Red Veins
-                wmBtn.style.boxShadow = "0 0 8px #FF0000";    // Red Glow
-                wmBtn.style.backgroundColor = "rgba(100, 0, 0, 0.6)"; // Inflamed Background
-                wmBtn.title = "Visual Menu (Dark Mode: ON)";
-            }
-        } else {
-            body.classList.remove('ome-dark-mode');
-            showToast("Dark Mode OFF");
-
-            // --- NORMAL EFFECT (Inactive) ---
-            if (wmBtn) {
-                wmBtn.style.borderColor = "#666";
-                wmBtn.style.boxShadow = "none";
-                wmBtn.style.backgroundColor = "rgba(0,0,0,0.5)";
-                wmBtn.title = "Visual Menu";
-            }
+        if (wmBtn) {
+            wmBtn.style.borderColor = isDarkModeActive ? "#FFFFFF" : "#888";
+            wmBtn.style.boxShadow = isDarkModeActive ? "0 0 10px rgba(255,255,255,0.8)" : "none";
+            // Also ensure opacity is correct if not in ghost mode
+            if (!isWindowTransparent) wmBtn.style.opacity = isDarkModeActive ? "1" : "0.7";
         }
 
-        // Always apply custom hides regardless of mode
-        applyCustomHides();
-        queueSave();
+        if (areWatermarksHidden) {
+            document.body.classList.add('ome-hide-watermarks');
+            document.body.classList.add('ome-dark-mode');
+
+            if (!isWindowTransparent) {
+                const win = document.getElementById("ip-log-window");
+                if (win) win.style.backgroundColor = "rgba(0,0,0,0.95)";
+            }
+        } else {
+            document.body.classList.remove('ome-hide-watermarks');
+            document.body.classList.remove('ome-dark-mode');
+
+            if (!isWindowTransparent) {
+                const win = document.getElementById("ip-log-window");
+                if (win) win.style.backgroundColor = "rgba(0,0,0,0.85)";
+            }
+        }
+        showToast(`Dark Mode: ${areWatermarksHidden ? "ON" : "OFF"}`);
     }
 
     function applyCustomHides() {
-        // 1. If we are in "Unhide" mode, do NOT enforce hiding.
-        // This stops the observer from re-hiding elements while we try to select them.
+        // 1. If in "Unhide" mode, do nothing to avoid fighting selection
         if (elementSelectorMode === 'unhide') return;
 
-        // 2. Clear old states to prevent duplication
-        document.querySelectorAll('.ome-visually-hidden').forEach(el => el.classList.remove('ome-visually-hidden'));
-        document.querySelectorAll('.ome-blacked-out').forEach(el => el.classList.remove('ome-blacked-out'));
+        // 2. Helper to toggle class efficiently
+        const enforceClass = (selector, className) => {
+            try {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(el => {
+                    // PERFORMANCE FIX: Only touch the DOM if necessary
+                    if (!el.classList.contains(className)) {
+                        el.classList.add(className);
+                    }
+                });
+            } catch(e) {}
+        };
 
-        // 3. Re-apply based on lists (Works in BOTH Light and Dark mode now)
-        customHiddenSelectors.forEach(selector => {
-            try { document.querySelectorAll(selector).forEach(el => el.classList.add('ome-visually-hidden')); } catch(e) {}
-        });
-        customBlackoutSelectors.forEach(selector => {
-            try { document.querySelectorAll(selector).forEach(el => el.classList.add('ome-blacked-out')); } catch(e) {}
-        });
+        // 3. Apply Hides
+        customHiddenSelectors.forEach(sel => enforceClass(sel, 'ome-visually-hidden'));
+        customBlackoutSelectors.forEach(sel => enforceClass(sel, 'ome-blacked-out'));
+
+        // Note: We no longer "clean up" every cycle because it causes flashing/lag.
+        // We only clean up when the user clicks "Unhide" or "Clear All".
     }
 
     // --- ELEMENT SELECTOR LOGIC ---
@@ -913,6 +2005,7 @@
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
 
         const target = e.target;
+        // Don't allow selecting the interface window itself
         if (target.closest('#ip-log-window') || target.closest('#ome-menu-dropdown')) {
             exitSelectorMode(); return;
         }
@@ -933,18 +2026,44 @@
             // Robust Unhide: Check target and all parents
             let found = false;
             let el = target;
+
+            // Traverse up the DOM tree from the clicked element
             while (el && el !== document.body) {
+                // 1. Check Custom Hidden Selectors
                 customHiddenSelectors.forEach(sel => {
-                    if (el.matches && el.matches(sel)) { customHiddenSelectors.delete(sel); found = true; }
+                    try {
+                        if (el.matches && el.matches(sel)) {
+                            customHiddenSelectors.delete(sel);
+                            found = true;
+                            // Force remove class immediately
+                            el.classList.remove('ome-visually-hidden');
+                        }
+                    } catch(err) {
+                        // If a selector is bad, ignore it and keep checking others
+                        console.warn("Invalid selector found and ignored:", sel);
+                    }
                 });
+
+                // 2. Check Custom Blackout Selectors
                 customBlackoutSelectors.forEach(sel => {
-                    if (el.matches && el.matches(sel)) { customBlackoutSelectors.delete(sel); found = true; }
+                    try {
+                        if (el.matches && el.matches(sel)) {
+                            customBlackoutSelectors.delete(sel);
+                            found = true;
+                            // Force remove class immediately
+                            el.classList.remove('ome-blacked-out');
+                        }
+                    } catch(err) {
+                        console.warn("Invalid selector found and ignored:", sel);
+                    }
                 });
+
                 el = el.parentElement;
             }
 
             if(found) {
-                applyCustomHides(); // Refresh to remove classes
+                // We don't need to call applyCustomHides() here because that only ADDS classes.
+                // We just removed the classes manually above and deleted the rule from the set.
                 showToast("Element Unhidden");
             } else {
                 showToast("No saved rule found for this element");
@@ -1011,9 +2130,19 @@
 
     function unhideAllElements() {
         if (!confirm("Unhide ALL custom hidden elements?\nThis will clear all your saved hides.")) return;
+
+        // 1. Clear the storage sets
         customHiddenSelectors.clear();
         customBlackoutSelectors.clear();
-        applyCustomHides();
+
+        // 2. FORCE REMOVE classes from all elements currently in the DOM
+        const hiddenEls = document.querySelectorAll('.ome-visually-hidden');
+        hiddenEls.forEach(el => el.classList.remove('ome-visually-hidden'));
+
+        const blackoutEls = document.querySelectorAll('.ome-blacked-out');
+        blackoutEls.forEach(el => el.classList.remove('ome-blacked-out'));
+
+        // 3. Save the empty state
         queueSave();
         showToast("All elements unhidden");
     }
@@ -1026,261 +2155,306 @@
         win.id = "ip-log-window";
         win.className = "ome-no-select resizable-win";
         Object.assign(win.style, {
-            position: "fixed", top: "120px", left: "10px", width: "480px",
-            minWidth: "320px", minHeight: "280px",
+            // CHANGED: Updated default Top/Left and Width/Height
+            position: "fixed",
+            top: "401px",       // Was "120px"
+            left: "316px",      // Was "10px"
+            width: "565px",     // Was "480px"
+            height: "482px",    // Added explicit height (optional, but good for consistency)
+
+            minWidth: "320px", minHeight: "280px", // Ensure these don't conflict
             backgroundColor: "rgba(0,0,0,0.85)",
             fontWeight: "bold", fontFamily: "monospace", borderRadius: "12px", border: "1px solid #444",
             backdropFilter: "blur(5px)", boxShadow: "0 4px 15px rgba(0,0,0,0.9)",
-            display: "flex", flexDirection: "column",
-            zIndex: "99999970"
+            display: "flex", flexDirection: "column", zIndex: "99999970", resize: "none"
         });
 
-        // --- TOP RIGHT HEADER CONTAINER ---
+        // --- [NEW] Task 4: Lock Button (Top Middle) ---
+        const lockBtn = document.createElement("div");
+        lockBtn.id = "ome-ui-lock-btn";
+        lockBtn.innerHTML = "🔓";
+        lockBtn.title = "Lock/Unlock Toggles";
+        Object.assign(lockBtn.style, {
+            position: "absolute", top: "5px", left: "50%", transform: "translateX(-50%)",
+            width: "24px", height: "24px", borderRadius: "50%",
+            backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid #555",
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "12px", zIndex: "50", transition: "all 0.2s"
+        });
+        lockBtn.onclick = () => {
+            isUILocked = !isUILocked;
+            lockBtn.innerHTML = isUILocked ? "🔒" : "🔓";
+            lockBtn.style.backgroundColor = isUILocked ? "rgba(255, 0, 0, 0.3)" : "rgba(0,0,0,0.5)";
+            lockBtn.style.borderColor = isUILocked ? "#FF0000" : "#555";
+            showToast(isUILocked ? "Controls Locked" : "Controls Unlocked", win);
+        };
+        win.appendChild(lockBtn);
+
         const mainHeaderContainer = document.createElement("div");
         Object.assign(mainHeaderContainer.style, {
             position: "absolute", top: "8px", right: "8px",
-            display: "flex", gap: "8px", alignItems: "flex-start",
+            display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end",
             zIndex: "20", pointerEvents: "none"
         });
 
-        // 1. CIRCLE ICONS ROW (Left Side of Header)
-        const iconRow = document.createElement("div");
-        Object.assign(iconRow.style, {
-            display: "flex", gap: "6px", alignItems: "center", pointerEvents: "auto"
-        });
+        // Helper: Creates a Wrapper <div> containing the absolute button
+        const createToggleDot = (id, getVal, emoji, label, onToggle, fontSize = "14px", noExpand = false) => {
+            const wrapper = document.createElement("div");
+            wrapper.className = "ome-btn-wrapper";
 
-        // Helper: Create Round Icon Toggle
-        const createToggleDot = (id, isActive, content, titleOn, titleOff, onClick) => {
             const dot = document.createElement("div");
-            dot.id = id; dot.className = "status-toggle-btn ome-no-select";
-            dot.innerText = content;
-            const color = isActive ? "#00FF00" : "#FF0000";
+            dot.id = id;
+            dot.className = "status-toggle-btn ome-no-select";
+
+            const iconSpan = document.createElement("span");
+            iconSpan.innerText = emoji;
+            iconSpan.className = "ome-icon-span";
+            iconSpan.style.fontSize = fontSize;
+            dot.appendChild(iconSpan);
+
+            const labelSpan = document.createElement("span"); labelSpan.innerText = label; labelSpan.className = "ome-btn-label";
+            dot.appendChild(labelSpan);
+
             Object.assign(dot.style, {
-                width: "32px", height: "32px", borderRadius: "50%",
-                backgroundColor: "rgba(0,0,0,0.5)",
-                boxShadow: isActive ? `0 0 8px ${color}` : "none",
-                border: `1px solid ${isActive ? '#00FF00' : '#888'}`,
-                cursor: "pointer", transition: "all 0.2s",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "16px", color: "#fff", fontWeight: "bold"
+                borderRadius: "16px", backgroundColor: "rgba(0,0,0,0.5)",
+                border: "1px solid #444", cursor: "pointer", fontSize: "14px", color: "#fff", fontWeight: "bold", pointerEvents: "auto"
             });
-            dot.title = isActive ? titleOn : titleOff;
-            dot.onclick = (e) => { e.stopPropagation(); onClick(dot); };
-            return dot;
+
+            if (noExpand) {
+                dot.style.width = "32px"; dot.style.transition = "none";
+                dot.style.setProperty("width", "32px", "important"); labelSpan.style.display = "none";
+            }
+
+            dot.onclick = (e) => {
+                e.stopPropagation();
+                // [NEW] Task 4: Lock Check
+                if (isUILocked) {
+                    lockBtn.style.transform = "translateX(-50%) scale(1.2)";
+                    setTimeout(() => lockBtn.style.transform = "translateX(-50%) scale(1)", 200);
+                    return;
+                }
+
+                onToggle();
+                saveCoreSettings();
+                updateStatusDots();
+                const newState = getVal();
+                showToast(`${label}: ${newState ? "ON" : "OFF"}`, win, newState ? "rgba(0,150,0,0.8)" : null);
+            };
+            wrapper.appendChild(dot);
+            return wrapper;
         };
 
-        // A. IP Grabber
-        const ipGrabDot = createToggleDot("status-dot-ipgrab", isIPGrabbingEnabled, "📡", "IP Grabbing: ON", "IP Grabbing: OFF", () => {
-            isIPGrabbingEnabled = !isIPGrabbingEnabled; updateStatusDots();
-        });
+        const rowStyle = { display: "flex", gap: "6px", alignItems: "center", justifyContent: "flex-end", pointerEvents: "auto" };
 
-        // B. Ban Protection
-        const reportDot = createToggleDot("status-dot-report", isReportProtectionEnabled, "🛡️", "Report Protection: ON", "Report Protection: OFF", () => {
-            isReportProtectionEnabled = !isReportProtectionEnabled;
+        // --- [NEW] Task 6: New Grid Layout ---
+
+        // ROW 1: Fake Cam | Jitter | Raw Audio
+        const row1 = document.createElement("div"); Object.assign(row1.style, rowStyle);
+        row1.appendChild(createToggleDot("status-dot-camera", () => FAKE_CONFIG.enabled, "🎬", "Fake Cam.mp4", () => {
+            FAKE_CONFIG.enabled = !FAKE_CONFIG.enabled; GM_setValue('ome_fake_cam_enabled', FAKE_CONFIG.enabled);
+        }));
+        row1.appendChild(createToggleDot("status-dot-antiban", () => FAKE_CONFIG.antiBanFrames, "🛡️", "Jitter", () => {
+            FAKE_CONFIG.antiBanFrames = !FAKE_CONFIG.antiBanFrames; GM_setValue('ome_antiban_frames', FAKE_CONFIG.antiBanFrames);
+        }));
+        row1.appendChild(createToggleDot("status-dot-raw-audio", () => FAKE_CONFIG.rawAudio, "🎤", "Raw Audio", () => {
+            FAKE_CONFIG.rawAudio = !FAKE_CONFIG.rawAudio; GM_setValue('ome_raw_audio', FAKE_CONFIG.rawAudio);
+            showToast("Raw Audio: Reload to apply");
+        }));
+        mainHeaderContainer.appendChild(row1);
+
+        // ROW 2: UDP Only | Device Spoof | Relay
+        const row2 = document.createElement("div"); Object.assign(row2.style, rowStyle);
+        row2.appendChild(createToggleDot("status-dot-udp", () => FAKE_CONFIG.udpStrict, "⚠️", "UDP Only", () => {
+            FAKE_CONFIG.udpStrict = !FAKE_CONFIG.udpStrict; GM_setValue('ome_udp_strict', FAKE_CONFIG.udpStrict);
+        }));
+        row2.appendChild(createToggleDot("status-dot-spoof", () => FAKE_CONFIG.spoofDeviceNames, "🏷️", "Device Spoof", () => {
+            const newState = !FAKE_CONFIG.spoofDeviceNames;
+            FAKE_CONFIG.spoofDeviceNames = newState;
+            GM_setValue('ome_spoof_devices', newState);
+
+            // Sync One Mode
+            FAKE_CONFIG.oneCameraMode = newState;
+            FAKE_CONFIG.oneInputMode = newState;
+            FAKE_CONFIG.oneOutputMode = newState;
+            GM_setValue('ome_one_cam_mode', newState);
+            GM_setValue('ome_one_input_mode', newState);
+            GM_setValue('ome_one_output_mode', newState);
+
+            updateAdvToggleVisual("adv-toggle-device-spoof", newState);
+            if (newState === true) createAdvancedSettingsWindow("adv-toggle-device-spoof");
+        }));
+        row2.appendChild(createToggleDot("status-dot-relay", () => FAKE_CONFIG.forceRelay, "🖧", "Relay", () => {
+            FAKE_CONFIG.forceRelay = !FAKE_CONFIG.forceRelay; GM_setValue('ome_force_relay', FAKE_CONFIG.forceRelay);
+        }, "22px"));
+        mainHeaderContainer.appendChild(row2);
+
+        // ROW 3: Report Bypass | Face Bypass | Fingerprint
+        const row3 = document.createElement("div"); Object.assign(row3.style, rowStyle);
+        row3.appendChild(createToggleDot("status-dot-report", () => isReportProtectionEnabled, "🖕", "Report Bypass", () => {
+            isReportProtectionEnabled = !isReportProtectionEnabled; GM_setValue('ome_report_protection', isReportProtectionEnabled);
             window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'report', enabled: isReportProtectionEnabled } }));
-            updateStatusDots();
-        });
-
-        // C. Face Bypass
-        const faceDot = createToggleDot("status-dot-face", isFaceProtectionEnabled, "🎭", "Face Bypass: ON", "Face Bypass: OFF", () => {
-            isFaceProtectionEnabled = !isFaceProtectionEnabled;
+        }));
+        row3.appendChild(createToggleDot("status-dot-face", () => isFaceProtectionEnabled, "🎭", "Face Bypass", () => {
+            isFaceProtectionEnabled = !isFaceProtectionEnabled; GM_setValue('ome_face_protection', isFaceProtectionEnabled);
             window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'face', enabled: isFaceProtectionEnabled } }));
-            updateStatusDots();
-        });
+        }));
+        row3.appendChild(createToggleDot("status-dot-fingerprint", () => isFingerprintSpoofingEnabled, "🧬", "Fingerprint", () => {
+            isFingerprintSpoofingEnabled = !isFingerprintSpoofingEnabled; GM_setValue('ome_fingerprint_spoofing', isFingerprintSpoofingEnabled);
+            showToast("Reload required to apply");
+        }));
+        mainHeaderContainer.appendChild(row3);
 
-        // --- ORDER: Face -> Shield -> IP ---
-        iconRow.appendChild(faceDot);
-        iconRow.appendChild(reportDot);
-        iconRow.appendChild(ipGrabDot);
+        // ROW 4: Cntry Blckr | IP Blocker | IP Grabber
+        const row4 = document.createElement("div"); Object.assign(row4.style, rowStyle);
+        row4.appendChild(createToggleDot("status-dot-country", () => countryBlockingEnabled, "🌐", "Cntry Blckr", () => {
+            countryBlockingEnabled = !countryBlockingEnabled;
+            if (countryBlockingEnabled && !isIPGrabbingEnabled) {
+                isIPGrabbingEnabled = true; showToast("IP Grabber Auto-Enabled");
+            }
+            queueSave();
+        }));
+        row4.appendChild(createToggleDot("status-dot-ipblock", () => ipBlockingEnabled, "⛔", "IP Blocker", () => {
+            ipBlockingEnabled = !ipBlockingEnabled;
+            if (ipBlockingEnabled && !isIPGrabbingEnabled) {
+                isIPGrabbingEnabled = true; showToast("IP Grabber Auto-Enabled");
+            }
+            queueSave();
+        }));
+        row4.appendChild(createToggleDot("status-dot-ipgrab", () => isIPGrabbingEnabled, "📡", "IP Grabber", () => {
+            isIPGrabbingEnabled = !isIPGrabbingEnabled; GM_setValue('ome_ip_grabbing', isIPGrabbingEnabled);
+            if (!isIPGrabbingEnabled) {
+                if(ipBlockingEnabled || countryBlockingEnabled) {
+                    ipBlockingEnabled = false; countryBlockingEnabled = false; showToast("Blockers Disabled (Requires Grabber)");
+                }
+            }
+        }));
+        mainHeaderContainer.appendChild(row4);
 
-        // 2. BADGE COLUMN (Right Side of Header)
-        const badgeCol = document.createElement("div");
-        Object.assign(badgeCol.style, {
-            display: "flex", flexDirection: "column", gap: "5px", alignItems: "flex-end", pointerEvents: "auto"
-        });
+        // ROW 5: Ghost | Anti-Bot | Eye (Menu)
+        const row5 = document.createElement("div"); Object.assign(row5.style, rowStyle);
 
-        const createBadge = (id, text, hoverText, action) => {
-            const b = document.createElement("button"); b.id = id; b.className = "clickable-badge ome-no-select";
-            b.innerText = text; b.title = hoverText;
-            Object.assign(b.style, {
-                fontSize: "11px", padding: "3px 8px", borderRadius: "4px", fontWeight: "bold",
-                letterSpacing: "0.5px", cursor: "pointer", border: "1px solid", transition: "all 0.2s",
-                height: "auto", display: "flex", alignItems:"center", background: "transparent", minWidth: "65px", justifyContent: "center"
-            });
-            b.onclick = (e) => { e.stopPropagation(); action(); };
-            return b;
-        };
+        row5.appendChild(createToggleDot("status-dot-ghost", () => isWindowTransparent, "👻", "Ghost Mode", () => {
+            toggleGhostMode(win);
+        }, "14px", true));
 
-        const cntryBadge = createBadge("badge-country", "CNTRY: OFF", "Toggle Country Blocking", () => { countryBlockingEnabled = !countryBlockingEnabled; updateMasterToggles(); queueSave(); });
-        const ipBadge = createBadge("badge-ip", "IP: OFF", "Toggle IP Blocking", () => { ipBlockingEnabled = !ipBlockingEnabled; updateMasterToggles(); queueSave(); });
+        row5.appendChild(createToggleDot("status-dot-antibot", () => isAntiBotEnabled, "🤖", "Anti-Bot", () => {
+            isAntiBotEnabled = !isAntiBotEnabled; GM_setValue('ome_anti_bot', isAntiBotEnabled);
+            showToast("Anti-Bot: Reload to Apply changes");
+        }));
 
-        const cmdBtn = document.createElement("div"); cmdBtn.id = "cmd-btn"; cmdBtn.className = "clickable-badge ome-no-select";
-        cmdBtn.innerText = "CMD"; cmdBtn.title = "Open Console";
-        Object.assign(cmdBtn.style, {
-            fontSize: "11px", padding: "3px 8px", borderRadius: "4px", fontWeight: "bold",
-            letterSpacing: "0.5px", cursor: "pointer",
-            border: "1px solid #00FF00", backgroundColor: "rgba(0, 100, 0, 0.2)", color: "#00FF00",
-            textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center",
-            minWidth: "65px"
-        });
-        cmdBtn.onclick = (e) => { e.stopPropagation(); toggleDevConsole(); };
+        // Eye Menu
+        const wmWrapper = document.createElement("div");
+        wmWrapper.className = "ome-btn-wrapper";
+        const wmInner = document.createElement("div");
+        wmInner.style.cssText = "position:absolute; top:0; right:0; width:32px; height:32px; display:flex; alignItems:center; justify-content:center; pointerEvents:auto;";
+        const wmBtn = document.createElement("div"); wmBtn.id = "watermark-toggle-btn"; wmBtn.className = "icon-btn ome-no-select";
 
-        // --- MINI ROW FOR GHOST & EYE UNDER CMD ---
-        const rightMiniRow = document.createElement("div");
-        Object.assign(rightMiniRow.style, { display: "flex", gap: "3px", marginTop: "2px" });
-
-        // Ghost Button
-        const ghostBtn = document.createElement("div"); ghostBtn.id = "ghost-mode-btn";
-        ghostBtn.className = "icon-btn ome-no-select ghost-btn-inactive";
-        ghostBtn.title = "Toggle Ghost Mode";
-        Object.assign(ghostBtn.style, {
-            width: "30px", height: "30px", borderRadius: "50%", border: "1px solid #666",
-            cursor: "pointer", backgroundColor:"rgba(0,0,0,0.5)",
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px"
-        });
-        ghostBtn.innerHTML = "👻";
-        ghostBtn.onclick = (e) => { e.stopPropagation(); toggleGhostMode(win); };
-
-        // Eye Button
-        const wmWrapper = document.createElement("div"); Object.assign(wmWrapper.style, { position: "relative", width: "30px", height: "30px" });
-        const wmBtn = document.createElement("div"); wmBtn.id = "watermark-toggle-btn";
-        wmBtn.className = "icon-btn ome-no-select"; wmBtn.innerText = "👁️";
-        wmBtn.title = "Visual Menu";
-        Object.assign(wmBtn.style, {
-            width: "30px", height: "30px", borderRadius: "50%", background: "rgba(0,0,0,0.5)",
-            border: "1px solid #666", cursor: "pointer", display: "flex",
-            alignItems: "center", justifyContent: "center", fontSize: "16px"
-        });
+        // Apply styling
+        Object.assign(wmBtn.style, { width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #888", backgroundColor: "#000", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" });
 
         const menu = document.createElement("div"); menu.id = "ome-menu-dropdown";
-        Object.assign(menu.style, { display: "none", position: "absolute", top: "35px", right: "0", backgroundColor: "rgba(0,0,0,0.95)", border: "1px solid #555", borderRadius: "6px", width: "160px", zIndex: "999999", padding: "4px" });
-
+        Object.assign(menu.style, { display: "none", position: "absolute", top: "40px", right: "0", backgroundColor: "rgba(0,0,0,0.95)", border: "1px solid #555", borderRadius: "6px", width: "160px", zIndex: "999999", padding: "4px" });
         const createMenuItem = (txt, color, action) => {
             const item = document.createElement("div"); item.innerText = txt;
             Object.assign(item.style, { padding: "8px", color: color, cursor: "pointer", fontSize: "11px", borderBottom: "1px solid #333" });
             item.onclick = (e) => { e.stopPropagation(); menu.style.display = "none"; action(); };
             return item;
         };
-        menu.appendChild(createMenuItem("1. Toggle Dark/Hide", "#fff", () => toggleWatermarks()));
-        menu.appendChild(createMenuItem("2. Select to Hide", "#FF4444", () => startSelector('hide')));
+        menu.appendChild(createMenuItem("1. Toggle Dark/Hide", "#FF4444", () => toggleWatermarks()));
+        menu.appendChild(createMenuItem("2. Select to Hide", "#FFFFFF", () => startSelector('hide')));
         menu.appendChild(createMenuItem("3. Select to Unhide", "#00FF00", () => startSelector('unhide')));
         menu.appendChild(createMenuItem("4. Unhide ALL Elements", "#FFA500", () => unhideAllElements()));
 
-        wmBtn.onclick = (e) => {
-            e.stopPropagation();
-            const isOpening = menu.style.display === "none";
-            menu.style.display = isOpening ? "block" : "none";
-            // If opening, white border. If closing, restore based on mode.
-            if(isOpening) wmBtn.style.borderColor = "#fff";
-            else {
-                if (isDarkModeActive) { wmBtn.style.borderColor = "#FF0000"; }
-                else { wmBtn.style.borderColor = "#666"; }
-            }
-        };
-        wmWrapper.appendChild(wmBtn); wmWrapper.appendChild(menu);
+        wmBtn.onmousedown = () => wmBtn.style.transform = "scale(0.95)"; wmBtn.onmouseup = () => wmBtn.style.transform = "scale(1)";
+        const wmSpan = document.createElement("span"); wmSpan.innerText = "👁️"; wmSpan.className = "ome-icon-span"; wmBtn.appendChild(wmSpan);
+        wmBtn.onclick = (e) => { e.stopPropagation(); menu.style.display = (menu.style.display === "block") ? "none" : "block"; };
+        let menuTimer = null;
+        wmInner.onmouseleave = () => { menuTimer = setTimeout(() => { menu.style.display = "none"; }, 500); };
+        wmInner.onmouseenter = () => { if(menuTimer) clearTimeout(menuTimer); };
 
-        rightMiniRow.appendChild(ghostBtn);
-        rightMiniRow.appendChild(wmWrapper);
+        wmInner.appendChild(wmBtn); wmInner.appendChild(menu);
+        wmWrapper.appendChild(wmInner);
+        row5.appendChild(wmWrapper);
 
-        badgeCol.appendChild(cntryBadge);
-        badgeCol.appendChild(ipBadge);
-        badgeCol.appendChild(cmdBtn);
-        badgeCol.appendChild(rightMiniRow);
+        mainHeaderContainer.appendChild(row5);
 
-        mainHeaderContainer.appendChild(iconRow);
-        mainHeaderContainer.appendChild(badgeCol);
+        // --- FOOTER: JRNL, CMD ---
+        const footerRow = document.createElement("div");
+        Object.assign(footerRow.style, { display: "flex", justifyContent: "flex-end", pointerEvents: "auto", marginTop: "4px" });
+
+        const jrnlBtn = document.createElement("div"); jrnlBtn.id = "jrnl-btn"; jrnlBtn.className = "clickable-badge ome-no-select"; jrnlBtn.innerText = "Jornal";
+        Object.assign(jrnlBtn.style, { fontSize: "13px", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", border: "1px solid #FFD700", backgroundColor: "rgba(255, 215, 0, 0.2)", color: "#FFD700", textAlign: "center", minWidth: "50px", marginRight: "6px" });
+        jrnlBtn.onclick = (e) => { e.stopPropagation(); createNotesListWindow(); };
+        footerRow.appendChild(jrnlBtn);
+
+        const cmdBtn = document.createElement("div"); cmdBtn.id = "cmd-btn"; cmdBtn.className = "clickable-badge ome-no-select"; cmdBtn.innerText = "CMD";
+        Object.assign(cmdBtn.style, { fontSize: "13px", padding: "6px 12px", borderRadius: "4px", fontWeight: "bold", cursor: "pointer", border: "1px solid #00FF00", backgroundColor: "rgba(0, 100, 0, 0.2)", color: "#00FF00", textAlign: "center", minWidth: "50px" });
+        cmdBtn.onclick = (e) => { e.stopPropagation(); toggleDevConsole(); };
+        footerRow.appendChild(cmdBtn);
+        mainHeaderContainer.appendChild(footerRow);
+
         win.appendChild(mainHeaderContainer);
 
-        // --- CONTENT AREA ---
-        const content = document.createElement("div");
-        content.id = "ip-stats-area"; content.className = "ome-no-select";
-        content.style.padding = "10px 15px"; content.style.flex = "1"; content.style.overflow = "hidden";
-        content.style.marginTop = "5px";
+        // Content
+        const content = document.createElement("div"); content.id = "ip-stats-area"; content.className = "ome-no-select";
+        content.style.padding = "10px 15px"; content.style.flex = "1"; content.style.overflow = "hidden"; content.style.marginTop = "5px";
         content.innerHTML = "<span style='color:#ccc;'>⏳ Waiting...</span>";
         win.appendChild(content);
 
-        // --- CONTROLS AREA ---
-        const controls = document.createElement("div");
-        controls.id = "ip-controls-area";
+        // Controls Area (Edit, Map, Settings, Volume)
+        const controls = document.createElement("div"); controls.id = "ip-controls-area";
         Object.assign(controls.style, { padding: "10px", borderTop: "1px solid #333", backgroundColor: "rgba(30,30,30,0.5)", display: "flex", flexDirection: "column", gap: "8px" });
 
-        // Row 1
         const row = document.createElement("div"); row.style.display = "flex"; row.style.gap = "8px";
-        const createCtrlBtn = (id, txt, bg, border, tooltip, action) => {
+        const createCtrlBtn = (id, txt, bg, border, action) => {
             const b = document.createElement("button"); b.id = id; b.innerText = txt; b.className = "ome-no-select";
-            b.title = tooltip;
             Object.assign(b.style, { flex: "1", padding: "8px", backgroundColor: bg, color: "#FFFFFF", border: border, borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", backdropFilter: "blur(5px)" });
             b.onclick = action; return b;
         };
 
-        const editBtn = createCtrlBtn("ip-btn-edit", "✏️ Note", "rgba(255, 215, 0, 0.3)", "1px solid rgba(218, 165, 32, 0.8)", "Edit Note", () => { if (currentIP) openNoteEditor(currentIP); });
-        editBtn.style.display = "none";
-        const mapBtn = createCtrlBtn("ome-map-btn-ctrl", "🗺️ MAP", "#2196F3", "1px solid #64B5F6", "Open Map", (e) => { e.stopPropagation(); createMapWindow(); });
-        mapBtn.style.backgroundColor = "#6495ED"; mapBtn.style.display = "none";
-        const settingsBtn = createCtrlBtn("ip-btn-settings", "⚙️ Settings", "rgba(0, 0, 0, 0.5)", "1px solid rgba(80, 80, 80, 0.8)", "Open Settings", toggleSettingsWindow);
+        // [CHANGED] Capture the Note button and hide it by default
+        const noteBtn = createCtrlBtn("ip-btn-edit", "✏️ Note", "rgba(255, 215, 0, 0.3)", "1px solid rgba(218, 165, 32, 0.8)", () => { if (currentIP) openNoteEditor(currentIP); });
+        noteBtn.style.display = "none"; // Hide initially
+        row.appendChild(noteBtn);
 
-        row.appendChild(editBtn); row.appendChild(mapBtn); row.appendChild(settingsBtn);
+        const mapBtn = createCtrlBtn("ome-map-btn-ctrl", "🗺️ MAP", "#2196F3", "1px solid #64B5F6", (e) => { e.stopPropagation(); createMapWindow(); }); mapBtn.style.backgroundColor = "#6495ED"; mapBtn.style.display = "none";
+        row.appendChild(mapBtn);
+        row.appendChild(createCtrlBtn("ip-btn-settings", "⚙️ Settings", "rgba(0, 0, 0, 0.5)", "1px solid rgba(80, 80, 80, 0.8)", toggleSettingsWindow));
         controls.appendChild(row);
 
-        // Volume Slider
         const volContainer = document.createElement("div"); volContainer.style.display = "flex"; volContainer.style.alignItems = "center"; volContainer.style.gap = "5px"; volContainer.style.marginTop = "2px";
         const volLabel = document.createElement("span"); volLabel.innerText = "🔊"; volLabel.style.fontSize = "12px";
-        const volSlider = document.createElement("input");
-        volSlider.type = "range"; volSlider.min = "0"; volSlider.max = "1"; volSlider.step = "0.01"; volSlider.value = "1.0"; volSlider.className = "ome-vol-slider";
-        volSlider.title = "Volume Control";
+        const volSlider = document.createElement("input"); volSlider.type = "range"; volSlider.min = "0"; volSlider.max = "1"; volSlider.step = "0.01"; volSlider.value = "1.0"; volSlider.className = "ome-vol-slider";
         volSlider.oninput = (e) => { e.stopPropagation(); updateVolume(parseFloat(e.target.value)); };
-        setTimeout(() => updateVolume(1.0), 0);
         volContainer.appendChild(volLabel); volContainer.appendChild(volSlider);
         controls.appendChild(volContainer);
 
-        // Footer Row
-        const footerRow = document.createElement("div"); Object.assign(footerRow.style, { display: "flex", gap: "8px", marginTop: "4px" });
+        const fr = document.createElement("div"); Object.assign(fr.style, { display: "flex", gap: "8px", marginTop: "4px" });
         const blockBtn = document.createElement("button"); blockBtn.id = "btn-block-skip"; blockBtn.className = "ome-no-select"; blockBtn.innerHTML = "🚫 BLOCK IP"; blockBtn.style.display = "none";
-        blockBtn.title = "Block this IP";
-        Object.assign(blockBtn.style, { flex: "1", padding: "10px", backgroundColor: "rgba(139, 0, 0, 0.3)", color: "#fff", border: "1px solid rgba(255, 68, 68, 0.8)", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", textTransform: "uppercase", backdropFilter: "blur(5px)" });
+        Object.assign(blockBtn.style, { flex: "1", padding: "10px", backgroundColor: "rgba(139, 0, 0, 0.3)", color: "#fff", border: "1px solid rgba(255, 68, 68, 0.8)", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "14px" });
         blockBtn.onclick = () => { if (isRelayIP || !currentIP) return; loadData().blockedIPs.add(currentIP); queueSave(); performSmartSkip("Manual Block"); blockBtn.innerText = "BLOCKED!"; setTimeout(() => { blockBtn.innerHTML = "🚫 BLOCK IP"; }, 1000); };
-
         const nextBtn = document.createElement("button"); nextBtn.id = "ome-next-btn-footer"; nextBtn.innerText = "SKIP ⏭"; nextBtn.className = "ome-next-btn ome-no-select";
-        nextBtn.title = "Skip to Next Partner";
-        Object.assign(nextBtn.style, { flex: "1", padding: "10px", backgroundColor: "#00AA00", color: "#FFF", border: "1px solid #00FF00", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "14px", boxShadow: "0 2px 4px rgba(0,0,0,0.5)" });
+        Object.assign(nextBtn.style, { flex: "1", padding: "10px", backgroundColor: "#00AA00", color: "#FFF", border: "1px solid #00FF00", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "14px" });
         nextBtn.onclick = (e) => { e.stopPropagation(); performSmartSkip("Manual Next"); };
-
-        footerRow.appendChild(blockBtn); footerRow.appendChild(nextBtn);
-        controls.appendChild(footerRow);
+        fr.appendChild(blockBtn); fr.appendChild(nextBtn);
+        controls.appendChild(fr);
 
         win.appendChild(controls);
         document.body.appendChild(win);
-        makeDraggable(win, win);
-        updateMasterToggles();
+        makeDraggable(win, win); makeResizable(win); updateStatusDots();
         if (areWatermarksHidden) document.body.classList.add('ome-hide-watermarks');
-
-        // CLICK OUTSIDE LISTENER (UPDATED FOR BLOODSHOT RETENTION)
-        document.addEventListener('click', (e) => {
-            const menu = document.getElementById("ome-menu-dropdown");
-            const btn = document.getElementById("watermark-toggle-btn");
-            if (menu && menu.style.display === 'block') {
-                if (!menu.contains(e.target) && !btn.contains(e.target)) {
-                    menu.style.display = 'none';
-                    if(btn) {
-                        // Check if Dark Mode is active to restore Bloodshot look
-                        if (isDarkModeActive) {
-                            btn.style.borderColor = "#FF0000";
-                        } else {
-                            btn.style.borderColor = "#666";
-                        }
-                    }
-                }
-            }
-        });
-
         sandboxWindowEvents(win);
     }
 
     function toggleGhostMode(win) {
+        // Toggle the state
         isWindowTransparent = !isWindowTransparent;
 
-        // --- Selectors ---
-        const ghostBtn = document.getElementById("ghost-mode-btn");
+        // [FIX] Save state to storage
+        GM_setValue('ome_ghost_mode', isWindowTransparent);
+
+        // Selectors
+        const ghostBtn = document.getElementById("status-dot-ghost"); // [UPDATED] Selector for new dot button
         const copyBtns = document.querySelectorAll(".ip-copy-btn");
         const nextBtn = document.querySelector(".ome-next-btn");
         const mapBtn = document.getElementById("ome-map-btn-ctrl");
@@ -1289,51 +2463,61 @@
         const volSlider = document.querySelector(".ome-vol-slider");
         const volIcon = volSlider ? volSlider.previousElementSibling : null;
 
-        // Buttons to dim
         const dimmedElements = document.querySelectorAll(
-            ".clickable-badge, .status-toggle-btn, #ip-btn-edit, #ip-btn-settings, #btn-block-skip, #cmd-btn"
+            ".clickable-badge, #ip-btn-edit, #ip-btn-settings, #btn-block-skip, #cmd-btn, #jrnl-btn"
         );
+        const circleToggles = document.querySelectorAll(".status-toggle-btn");
+
+        // Toggle Ghost Dance (Animation on the button icon)
+        if (ghostBtn) {
+            const ghostSpan = ghostBtn.querySelector('.ome-icon-span');
+            if (ghostSpan) {
+                if (isWindowTransparent) ghostSpan.classList.add('ome-anim-jiggle');
+                else ghostSpan.classList.remove('ome-anim-jiggle');
+            }
+        }
 
         if (isWindowTransparent) {
             // --- GHOST MODE ACTIVE ---
-            win.style.backgroundColor = "rgba(0,0,0,0.15)";
+            win.style.setProperty("background-color", "rgba(0,0,0,0.15)", "important");
             win.style.backdropFilter = "none";
+            win.style.boxShadow = "none";
+
             const controlsArea = document.getElementById("ip-controls-area");
             if (controlsArea) controlsArea.style.backgroundColor = "transparent";
 
-            // Make text/sliders dull
-            if (wmBtn) { wmBtn.style.opacity = "0.3"; wmBtn.style.borderColor = "transparent"; }
+            // Dim Utility Buttons
+            if (wmBtn) {
+                wmBtn.style.opacity = "0.3";
+                wmBtn.style.boxShadow = "none";
+                // [FIX] Changed from Red (#FF0000) to White (#FFFFFF)
+                wmBtn.style.borderColor = isDarkModeActive ? "#FFFFFF" : "transparent";
+            }
             if (volSlider) volSlider.style.opacity = "0.3";
             if (volIcon) volIcon.style.opacity = "0.3";
             if (mapBtn) { mapBtn.style.opacity = "0.3"; mapBtn.style.boxShadow = "none"; }
 
-            // --- CHANGED LOGIC HERE ---
             dimmedElements.forEach(el => {
-                // If it is a Status Toggle (Circle), keep it BRIGHT and COLORFUL
-                if (el.classList.contains('status-toggle-btn')) {
-                    el.style.opacity = "1";       // Keep fully visible
-                    el.style.filter = "none";     // Do not make it grey
-                    // Do NOT remove box-shadow (Glow)
-                }
-                // If it is the Country/IP Badge, keep it semi-visible so text is readable
-                else if (el.classList.contains('clickable-badge')) {
-                    el.style.opacity = "0.8";
+                el.style.opacity = "0.3";
+                el.style.filter = "grayscale(80%)";
+                el.style.boxShadow = "none";
+            });
+
+            circleToggles.forEach(el => {
+                // Skip the Ghost button itself so it stays visible
+                if (el !== ghostBtn) {
+                    el.style.opacity = "0.4";
+                    el.style.backgroundColor = "transparent";
                     el.style.filter = "none";
-                    el.style.boxShadow = "none";
-                }
-                // Everything else (Settings button, etc) gets dimmed
-                else {
-                    el.style.opacity = "0.3";
-                    el.style.filter = "grayscale(80%)";
-                    el.style.boxShadow = "none";
                 }
             });
 
-            // Ghost button stays active/visible
             if (ghostBtn) {
-                ghostBtn.classList.remove("ghost-btn-inactive");
-                ghostBtn.classList.add("ghost-btn-active");
-                ghostBtn.style.backgroundColor = "rgba(255,255,255,0.8)";
+                // Ghost button highlights when active
+                ghostBtn.style.backgroundColor = "rgba(255,255,255,0.2)";
+                ghostBtn.style.borderColor = "#FFFFFF";
+                ghostBtn.style.boxShadow = "0 0 15px #FFFFFF, 0 0 5px #FFFFFF";
+                ghostBtn.style.opacity = "1";
             }
 
             copyBtns.forEach(btn => {
@@ -1350,6 +2534,11 @@
             }
 
             if (statsArea) {
+                statsArea.style.opacity = "1";
+                statsArea.style.filter = "none";
+                statsArea.querySelectorAll('*').forEach(el => {
+                    el.style.textShadow = "1px 1px 2px #000, -1px -1px 2px #000";
+                });
                 statsArea.querySelectorAll('.ome-text-outline').forEach(el => {
                     el.classList.remove('ome-text-outline');
                     el.classList.add('ome-text-outline-thick');
@@ -1360,29 +2549,45 @@
             // --- NORMAL MODE ---
             win.style.backgroundColor = "rgba(0,0,0,0.85)";
             win.style.backdropFilter = "blur(5px)";
+            win.style.boxShadow = "0 4px 15px rgba(0,0,0,0.9)";
+
             const controlsArea = document.getElementById("ip-controls-area");
             if (controlsArea) controlsArea.style.backgroundColor = "rgba(30,30,30,0.5)";
 
-            // Restore styling
             dimmedElements.forEach(el => {
                 el.style.opacity = "1";
                 el.style.filter = "none";
-                // Re-trigger updateStatusDots to restore correct box-shadows/colors for toggles
-                updateStatusDots();
             });
-            // Re-apply master toggles logic for badges
-            updateMasterToggles();
 
-            if (wmBtn) wmBtn.style.opacity = isDarkModeActive ? "1" : "0.6";
-            if (wmBtn) wmBtn.style.borderColor = "#666";
+            circleToggles.forEach(el => {
+                el.style.opacity = "1";
+                el.style.backgroundColor = "rgba(0,0,0,0.5)";
+                el.style.filter = "none";
+            });
+
+            updateStatusDots(); // Refreshes the specific colors of the toggle buttons
+
+            if (wmBtn) {
+                // [FIX] Ensure Normal Mode opacity is 1 (or 0.7 if you prefer slightly dim)
+                wmBtn.style.opacity = "1";
+                if (isDarkModeActive) {
+                     // [FIX] Changed from Red (#FF0000) to White (#FFFFFF)
+                     wmBtn.style.borderColor = "#FFFFFF";
+                     wmBtn.style.boxShadow = "0 0 10px rgba(255,255,255,0.8)";
+                } else {
+                     wmBtn.style.borderColor = "#888";
+                     wmBtn.style.boxShadow = "0 0 3px #888";
+                }
+            }
             if (volSlider) volSlider.style.opacity = "1";
             if (volIcon) volIcon.style.opacity = "1";
             if (mapBtn) { mapBtn.style.opacity = "1"; mapBtn.style.boxShadow = "none"; }
 
+            // Ghost button returns to normal state
             if (ghostBtn) {
-                ghostBtn.classList.remove("ghost-btn-active");
-                ghostBtn.classList.add("ghost-btn-inactive");
                 ghostBtn.style.backgroundColor = "rgba(0,0,0,0.5)";
+                ghostBtn.style.borderColor = "#888";
+                ghostBtn.style.boxShadow = "0 0 3px #888";
             }
 
             copyBtns.forEach(btn => {
@@ -1408,42 +2613,38 @@
     }
 
     function updateMasterToggles() {
-        // 1. Update Main Window Badges
-        const cnBadge = document.getElementById("badge-country"), ipBadge = document.getElementById("badge-ip");
-        if (cnBadge) { cnBadge.style.background = countryBlockingEnabled ? '#004400' : '#440000'; cnBadge.style.color = countryBlockingEnabled ? '#00FF00' : '#FF7777'; cnBadge.style.borderColor = countryBlockingEnabled ? '#00FF00' : '#FF0000'; cnBadge.innerText = countryBlockingEnabled ? 'CNTRY: ON' : 'CNTRY: OFF'; }
-        if (ipBadge) { ipBadge.style.background = ipBlockingEnabled ? '#004400' : '#440000'; ipBadge.style.color = ipBlockingEnabled ? '#00FF00' : '#FF7777'; ipBadge.style.borderColor = ipBlockingEnabled ? '#00FF00' : '#FF0000'; ipBadge.innerText = ipBlockingEnabled ? 'IP: ON' : 'IP: OFF'; }
-
-        // 2. Update Simple Settings Window
+        // 1. Update Simple Settings Window
         updateSettingSwitch("setting-toggle-ip", ipBlockingEnabled, "🛡️ IP Blocking");
         updateSettingSwitch("setting-toggle-country", countryBlockingEnabled, "🌍 Country Blocking");
 
-        // 3. Update Block Button Visibility
+        // 2. Update Block Button Visibility
         const blockBtn = document.getElementById("btn-block-skip");
         if (blockBtn) {
             if (!ipBlockingEnabled || !currentIP || isRelayIP) blockBtn.style.display = 'none';
             else blockBtn.style.display = 'block';
         }
 
-        // 4. Update Tabs if Settings Window is open
+        // 3. Update Tabs if Settings Window is open
         const settingsWin = document.getElementById("ome-settings-window");
         if (settingsWin && settingsWin.style.display === "flex") {
             switchTab(lastActiveTab);
         }
 
-        // 5. [NEW] Sync Advanced Settings Toggles
-        updateAdvToggleVisual("adv-toggle-ip-block", ipBlockingEnabled);
-        updateAdvToggleVisual("adv-toggle-country-block", countryBlockingEnabled);
+        // 4. Update Status Dots (The new circles)
+        updateStatusDots();
     }
 
     function updateSettingSwitch(id, isEnabled, labelText) {
         const btn = document.getElementById(id);
         if (!btn) return;
-        const bgColor = isEnabled ? "#00E000" : "#FF0000";
+        const bgColor = isEnabled ? "#00E000" : "#FF0000"; // Red when OFF
+        const trackColor = isEnabled ? "#00E000" : "#A00000"; // Dark Red Track
         const switchPos = isEnabled ? "26px" : "2px";
         const switchText = isEnabled ? "ON" : "OFF";
+
         btn.style.backgroundColor = isEnabled ? "rgba(0, 100, 0, 0.3)" : "rgba(100, 0, 0, 0.3)";
         btn.style.border = `1px solid ${bgColor}`;
-        btn.innerHTML = `<div style="display: flex; align-items: center; justify-content: space-between; width: 100%;"><span style="color: white; font-weight: bold; font-size: 14px;">${labelText}</span><div class="ome-toggle-track" style="background-color: ${bgColor};"><div class="ome-toggle-knob" style="transform: translateX(${switchPos});">${switchText}</div></div></div>`;
+        btn.innerHTML = `<div style="display: flex; align-items: center; justify-content: space-between; width: 100%;"><span style="color: white; font-weight: bold; font-size: 14px;">${labelText}</span><div class="ome-toggle-track" style="background-color: ${trackColor};"><div class="ome-toggle-knob" style="transform: translateX(${switchPos});">${switchText}</div></div></div>`;
     }
 
     // --- MAP WINDOW ---
@@ -1485,7 +2686,8 @@
         header.innerHTML = "<span style='font-weight:bold; font-size:14px;'>🗺️ Partner Location</span>";
 
         const closeBtn = document.createElement("button"); closeBtn.innerText = "✖";
-        Object.assign(closeBtn.style, { background: "none", border: "none", color: "white", fontSize: "16px", cursor: "pointer" });
+        // [FIX] Increased padding
+        Object.assign(closeBtn.style, { background: "none", border: "none", color: "white", fontSize: "16px", cursor: "pointer", padding: "0 10px" });
         closeBtn.onclick = () => {
             win.style.display = "none";
             const container = win.querySelector("#ome-map-container");
@@ -1596,7 +2798,7 @@
         win.id = "dev-console-win"; win.className = "ome-no-select resizable-win";
         Object.assign(win.style, {
             position: "fixed", top: "150px", left: "500px", width: "450px", height: "300px", backgroundColor: "#000", border: "1px solid #0f0", color: "#0f0", fontFamily: "monospace", fontSize: "11px", display: "none", flexDirection: "column",
-            zIndex: "99999990"
+            zIndex: "100000050"
         });
 
         const header = document.createElement("div");
@@ -1678,7 +2880,7 @@
         // --- FILTER LOGIC ---
         // Only show 'RTC' (Sniffed Data) and 'IP' (The Detected Target)
         // This removes 'SYS', 'API', 'ERR', etc.
-        const visibleTypes = ['IP', 'SYS','API','ERR'];
+        const visibleTypes = ['IP', 'SYS', 'API', 'ERR', 'RTC', 'SKIP'];
 
         const filteredLogs = devLogs.filter(l => visibleTypes.includes(l.type));
 
@@ -1732,7 +2934,7 @@
         header.appendChild(headerLeft);
 
         const closeBtn = document.createElement("button"); closeBtn.innerText = "✖";
-        Object.assign(closeBtn.style, { background: "none", border: "none", color: "white", fontSize: "18px", cursor: "pointer" });
+        Object.assign(closeBtn.style, { background: "none", border: "none", color: "white", fontSize: "18px", cursor: "pointer", padding: "0 15px", height: "100%" });
         closeBtn.onclick = toggleSettingsWindow;
         header.appendChild(closeBtn); win.appendChild(header);
 
@@ -1743,8 +2945,27 @@
             Object.assign(btn.style, { flex: "1", padding: "8px", borderRadius: "5px", cursor: "pointer", userSelect: "none", transition: "all 0.2s" });
             btn.onclick = action; return btn;
         };
-        masterControls.appendChild(createToggle("setting-toggle-country", () => { countryBlockingEnabled = !countryBlockingEnabled; updateMasterToggles(); queueSave(); }));
-        masterControls.appendChild(createToggle("setting-toggle-ip", () => { ipBlockingEnabled = !ipBlockingEnabled; updateMasterToggles(); queueSave(); }));
+        masterControls.appendChild(createToggle("setting-toggle-country", () => {
+            countryBlockingEnabled = !countryBlockingEnabled;
+            // [NEW] Auto-Enable Grabber
+            if (countryBlockingEnabled && !isIPGrabbingEnabled) {
+                isIPGrabbingEnabled = true;
+                GM_setValue('ome_ip_grabbing', true);
+                showToast("IP Grabber Auto-Enabled");
+            }
+            updateMasterToggles(); queueSave();
+        }));
+
+        masterControls.appendChild(createToggle("setting-toggle-ip", () => {
+            ipBlockingEnabled = !ipBlockingEnabled;
+            // [NEW] Auto-Enable Grabber
+            if (ipBlockingEnabled && !isIPGrabbingEnabled) {
+                isIPGrabbingEnabled = true;
+                GM_setValue('ome_ip_grabbing', true);
+                showToast("IP Grabber Auto-Enabled");
+            }
+            updateMasterToggles(); queueSave();
+        }));
         win.appendChild(masterControls);
 
         const tabContainer = document.createElement("div"); Object.assign(tabContainer.style, { display: "flex", position: "relative" });
@@ -1757,8 +2978,30 @@
         tabContainer.appendChild(createTab("Blocked IPs", "tab-ips"));
         win.appendChild(tabContainer);
 
-        const content = document.createElement("div"); content.id = "settings-content"; content.style.flex = "1"; content.style.overflowY = "auto";
+        const content = document.createElement("div"); content.id = "settings-content";
+        content.className = "ome-scroll-lock";
+        content.style.flex = "1"; content.style.overflowY = "auto";
         win.appendChild(content);
+
+        // [REQ 4] Bigger Emoji Button for Advanced Settings
+        const floatAdvBtn = document.createElement("div");
+        floatAdvBtn.innerHTML = "🛠️";
+        floatAdvBtn.title = "Advanced Settings";
+        Object.assign(floatAdvBtn.style, {
+            position: "absolute", bottom: "20px", right: "20px",
+            // Increased Size
+            width: "60px", height: "60px", borderRadius: "14px",
+            backgroundColor: "rgba(50, 50, 50, 0.9)", border: "2px solid #666",
+            color: "#fff", fontSize: "30px", display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", zIndex: "100", boxShadow: "0 4px 10px rgba(0,0,0,0.5)",
+            transition: "transform 0.1s, background-color 0.2s"
+        });
+        floatAdvBtn.onmouseover = () => { floatAdvBtn.style.backgroundColor = "rgba(70, 70, 70, 1)"; };
+        floatAdvBtn.onmouseout = () => { floatAdvBtn.style.backgroundColor = "rgba(50, 50, 50, 0.9)"; };
+        floatAdvBtn.onmousedown = () => { floatAdvBtn.style.transform = "scale(0.95)"; };
+        floatAdvBtn.onmouseup = () => { floatAdvBtn.style.transform = "scale(1)"; };
+        floatAdvBtn.onclick = () => createAdvancedSettingsWindow();
+        win.appendChild(floatAdvBtn);
 
         document.body.appendChild(win);
         makeDraggable(header, win); updateMasterToggles();
@@ -1766,10 +3009,31 @@
     }
 
     document.addEventListener('mousedown', (e) => {
+        // 1. Regular Settings Window
         const settings = document.getElementById('ome-settings-window');
         const openBtn = document.getElementById('ip-btn-settings');
         if (settings && settings.style.display === 'flex') {
             if (!settings.contains(e.target) && e.target !== openBtn) toggleSettingsWindow();
+        }
+
+        // 2. Advanced Settings Window (Close on click outside)
+        const advSettings = document.getElementById('ome-adv-settings-window');
+        // We need to check if we are clicking the "Advanced Settings" button inside the normal settings window,
+        // otherwise it will close immediately after opening.
+        // But since that button is inside 'settings-content', we can check if the click is inside 'ome-settings-window'
+
+        if (advSettings && advSettings.style.display === 'flex') {
+            const insideAdv = advSettings.contains(e.target);
+            // Check if we clicked inside the Regular Settings window (where the Open button is)
+            const insideRegular = settings && settings.contains(e.target);
+
+            // Point 9: Close if clicking outside Advanced Window AND outside Regular Settings Window
+            // (Assuming you want it to stay open if you click back to the main settings, but usually 'outside' means anywhere else)
+            // Let's implement strict "Clicking Main Window or Website closes it"
+
+            if (!insideAdv && !insideRegular) {
+                advSettings.style.display = "none";
+            }
         }
     });
 
@@ -1784,51 +3048,63 @@
 
     function switchTab(tabId) {
         lastActiveTab = tabId;
-        const tabs = document.querySelectorAll("#ome-settings-window > div:nth-child(3) > div");
         const content = document.getElementById("settings-content");
+        const tabs = document.querySelectorAll("#ome-settings-window > div:nth-child(3) > div");
 
-        // --- DYNAMIC BORDER COLOR LOGIC ---
-        let borderColor = '#FF4444'; // Fallback
-        if (tabId === 'tab-ips') {
-            borderColor = ipBlockingEnabled ? '#00FF00' : '#FF0000';
-        } else if (tabId === 'tab-countries') {
-            borderColor = countryBlockingEnabled ? '#00FF00' : '#FF0000';
-        }
+        // Determine Border Colors
+        const ipColor = ipBlockingEnabled ? '#00FF00' : '#FF0000';
+        const countryColor = countryBlockingEnabled ? '#00FF00' : '#FF0000';
 
-        const winBg = "rgba(17, 17, 17, 0.95)";
+        // Active Color for Content Box
+        let activeBorderColor = '#FF4444';
+        if (tabId === 'tab-ips') activeBorderColor = ipColor;
+        else if (tabId === 'tab-countries') activeBorderColor = countryColor;
 
         if (content) {
-            content.style.border = `2px solid ${borderColor}`;
+            // CHANGED: Reduced to 2px to be thinner
+            content.style.border = `2px solid ${activeBorderColor}`;
             content.style.borderRadius = "0 0 10px 10px";
             content.style.zIndex = "5";
             content.style.position = "relative";
-            content.style.marginTop = "-2px";
+            content.style.marginTop = "0px";
         }
 
         tabs.forEach(t => {
-            const active = t.dataset.target === tabId;
-            if (active) {
+            const isActive = t.dataset.target === tabId;
+            const isIpTab = t.dataset.target === 'tab-ips';
+
+            const myStateColor = isIpTab ? ipColor : countryColor;
+            const myDullColor = isIpTab ? (ipBlockingEnabled ? "#006600" : "#660000") : (countryBlockingEnabled ? "#006600" : "#660000");
+
+            if (isActive) {
+                // Active: Overlap the content border
                 Object.assign(t.style, {
-                    backgroundColor: winBg,
+                    backgroundColor: "rgba(17, 17, 17, 0.95)",
                     color: "#fff",
                     fontWeight: "bold",
-                    borderTop: `2px solid ${borderColor}`,
-                    borderLeft: `2px solid ${borderColor}`,
-                    borderRight: `2px solid ${borderColor}`,
-                    borderBottom: "none",
+                    // CHANGED: Reduced to 2px
+                    borderTop: `2px solid ${myStateColor}`,
+                    borderLeft: `2px solid ${myStateColor}`,
+                    borderRight: `2px solid ${myStateColor}`,
+                    borderBottom: "none", // Open bottom
                     zIndex: "10",
-                    marginBottom: "0px",
+                    // CHANGED: Adjusted margin to -2px to match new border thickness
+                    marginBottom: "-2px",
                     paddingBottom: "12px",
                     borderRadius: "10px 10px 0 0",
                     position: "relative"
                 });
             } else {
+                // Inactive
                 Object.assign(t.style, {
                     backgroundColor: "transparent",
                     color: "#888",
                     fontWeight: "normal",
-                    border: "none",
-                    borderBottom: `2px solid ${borderColor}`,
+                    borderTop: `2px solid ${myDullColor}`,
+                    borderLeft: `2px solid ${myDullColor}`,
+                    borderRight: `2px solid ${myDullColor}`,
+                    // CHANGED: Match the 2px content border
+                    borderBottom: `2px solid ${activeBorderColor}`,
                     zIndex: "1",
                     marginBottom: "0px",
                     paddingBottom: "10px",
@@ -1843,77 +3119,57 @@
     }
 
     // Replace your existing createCountryControlRow function with this:
-    // [REPLACEMENT CODE FOR createCountryControlRow]
     function createCountryControlRow(container, list) {
         const row = document.createElement("div");
         Object.assign(row.style, {
-            display: "flex",
-            gap: "10px",
-            marginBottom: "10px",
-            alignItems: "center",
-            padding: "0 5px",
-            position: "relative", // Needed for absolute centering
-            height: "36px"        // Enforce height so the absolute button fits
+            display: "flex", gap: "10px", marginBottom: "10px", alignItems: "center",
+            padding: "0 5px", position: "relative", height: "36px"
         });
 
-        // 1. SELECT ALL BUTTON (Top Left)
+        // 1. SELECT ALL BUTTON
         const selectAllBtn = document.createElement("button");
-        selectAllBtn.innerText = "☑ ALL";
+        // [REQ 8] Space after emoji
+        selectAllBtn.innerText = "☑  ALL";
         selectAllBtn.title = "Select / Deselect All";
         Object.assign(selectAllBtn.style, {
-            width: "70px",
-            padding: "8px",
-            backgroundColor: "#555", color: "#eee",
-            border: "1px solid #777", borderRadius: "4px",
-            cursor: "pointer", fontWeight: "bold", fontSize: "12px",
-            textAlign: "center"
+            // [REQ 8] Grey checkbox style
+            width: "70px", padding: "8px", backgroundColor: "#444", color: "#eee",
+            border: "1px solid #666", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", textAlign: "center"
         });
 
         selectAllBtn.onclick = () => {
-            // Re-load data to ensure we have the latest reference
             const { blockedCountries } = loadData();
             if (list) {
                 const allCodes = list.map(c => c.code);
-                // Check if every country in the list is currently blocked
                 const allSel = allCodes.every(c => blockedCountries.has(c));
-                // Toggle: If all selected, delete all. Otherwise, add all.
                 allCodes.forEach(c => allSel ? blockedCountries.delete(c) : blockedCountries.add(c));
                 queueSave();
                 renderBlockedCountries();
             }
         };
 
-        // 2. DEFAULT BUTTON (True Center)
+        // 2. DEFAULT BUTTON (WITH CONFIRMATION)
         const defaultBtn = document.createElement("button");
         defaultBtn.innerText = "↺ Defaults";
         Object.assign(defaultBtn.style, {
-            position: "absolute",       // Ignore other elements
-            left: "50%",                // Move to middle
-            transform: "translateX(-50%)", // Center align perfectly
-            width: "140px",
-            padding: "8px",
-            backgroundColor: "#0056b3",
-            color: "white",
-            border: "1px solid #004494",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontWeight: "bold",
-            fontSize: "12px"
+            position: "absolute", left: "50%", transform: "translateX(-50%)",
+            width: "140px", padding: "8px", backgroundColor: "#0056b3", color: "white",
+            border: "1px solid #004494", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "12px"
         });
 
         defaultBtn.onclick = () => {
-            // FIX: Update the GLOBAL variable directly
-            if (typeof blockedCountriesCache !== 'undefined') {
-                blockedCountriesCache = new Set(DEFAULT_BLOCKED_COUNTRIES);
-                queueSave();
-                renderBlockedCountries();
-                showToast("Countries reset to Default");
-            } else {
-                // Fallback if cache is somehow missing (rare)
-                loadData();
-                blockedCountriesCache = new Set(DEFAULT_BLOCKED_COUNTRIES);
-                queueSave();
-                renderBlockedCountries();
+            if (confirm("Reset Country Blocks to Defaults?")) {
+                if (typeof blockedCountriesCache !== 'undefined') {
+                    blockedCountriesCache = new Set(DEFAULT_BLOCKED_COUNTRIES);
+                    queueSave();
+                    renderBlockedCountries();
+                    showToast("Countries reset to Default");
+                } else {
+                    loadData();
+                    blockedCountriesCache = new Set(DEFAULT_BLOCKED_COUNTRIES);
+                    queueSave();
+                    renderBlockedCountries();
+                }
             }
         };
 
@@ -2076,88 +3332,164 @@
     function renderBlockedIPs() {
         const container = document.getElementById("settings-content");
         container.innerHTML = "";
-        // Ensure relative positioning so the absolute background works
         Object.assign(container.style, { padding: "10px", position: "relative", minHeight: "300px" });
 
-        // --- BACKGROUND INFO (Watermark) ---
         const bgInfo = document.createElement("div");
         Object.assign(bgInfo.style, {
-            // CHANGED: Moved from bottom:20px to center using top:50% + transform
             position: "absolute", top: "50%", transform: "translateY(-50%)", left: "0", width: "100%",
-            textAlign: "center", zIndex: "0", pointerEvents: "none", // Behind everything
-            color: "rgba(255, 255, 255, 0.08)", // Very faint
-            fontSize: "14px", fontWeight: "bold", lineHeight: "1.6",
+            textAlign: "center", zIndex: "0", pointerEvents: "none",
+            color: "rgba(255, 255, 255, 0.08)", fontSize: "14px", fontWeight: "bold", lineHeight: "1.6",
             fontFamily: "monospace", textTransform: "uppercase"
         });
-        bgInfo.innerHTML = `
-            <div>Support: github.com/EolnMsuk</div>
-            <div>Discord: discord.gg/omeglestream</div>
-			<div>Donate: $eolnmsuk</div>
-        `;
+        bgInfo.innerHTML = `<div style="display: inline-block; text-align: left;"><div>Support: github.com/EolnMsuk</div><div>Discord: discord.gg/omeglestream</div><div>Donate: $eolnmsuk</div></div>`;
         container.appendChild(bgInfo);
 
         const btnRow = document.createElement("div");
-        // Ensure buttons are clickable (z-index)
         Object.assign(btnRow.style, { display: "flex", gap: "10px", marginBottom: "15px", position: "relative", zIndex: "10" });
 
         const clearBtn = document.createElement("button"); clearBtn.innerText = "🗑️ Clear All Blocked IPs";
         Object.assign(clearBtn.style, { flex: "1", padding: "8px", backgroundColor: "#cc7000", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" });
         clearBtn.onclick = () => { if(confirm("Clear IPs?")) { loadData().blockedIPs.clear(); queueSave(); renderBlockedIPs(); } };
 
-        const advSettingsBtn = document.createElement("button");
-        advSettingsBtn.innerText = "🛠️ Advanced Settings";
-        Object.assign(advSettingsBtn.style, { flex: "1", padding: "8px", backgroundColor: "#555", color: "#eee", border: "1px solid #777", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" });
-        advSettingsBtn.onclick = createAdvancedSettingsWindow;
-
-        btnRow.appendChild(clearBtn); btnRow.appendChild(advSettingsBtn);
+        btnRow.appendChild(clearBtn);
         container.appendChild(btnRow);
 
         const list = document.createElement("div");
-        // Ensure list sits on top of the background text
-        Object.assign(list.style, { position: "relative", zIndex: "5" });
+        Object.assign(list.style, { position: "relative", zIndex: "5", display: "flex", flexDirection: "column", gap: "5px" });
 
         const { blockedIPs, history } = loadData();
 
         if (blockedIPs.size === 0) list.innerHTML = "<div style='color:#666; text-align:center;'>No IPs blocked yet.</div>";
         else {
             Array.from(blockedIPs).reverse().forEach(ip => {
+                const data = history[ip] || {};
+
                 const item = document.createElement("div");
-                Object.assign(item.style, { display: "flex", justifyContent: "space-between", padding: "8px", borderBottom: "1px solid #333", backgroundColor: "rgba(26, 26, 26, 0.95)", alignItems: "center" });
+                Object.assign(item.style, {
+                    background: "rgba(26, 26, 26, 0.95)",
+                    borderRadius: "6px",
+                    border: "1px solid #333",
+                    overflow: "hidden"
+                });
+
+                // --- HEADER (The Bar) ---
+                const head = document.createElement("div");
+                Object.assign(head.style, {
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "10px", cursor: "pointer", transition: "background 0.2s"
+                });
+                head.onmouseover = () => { if(head.dataset.expanded !== "true") head.style.backgroundColor = "rgba(50,50,50,0.5)"; };
+                head.onmouseout = () => { if(head.dataset.expanded !== "true") head.style.backgroundColor = "transparent"; };
 
                 const leftSide = document.createElement("div");
-                Object.assign(leftSide.style, { display: "flex", alignItems: "center", cursor: "pointer", flex: "1" });
-                leftSide.title = "Click to Copy";
+                Object.assign(leftSide.style, { display: "flex", alignItems: "center", flex: "1" });
 
-                leftSide.onclick = function() {
-                    navigator.clipboard.writeText(ip);
-                    const msg = document.createElement("span");
-                    msg.innerText = "COPIED!";
-                    Object.assign(msg.style, { marginLeft: "10px", fontSize: "10px", fontWeight: "bold", color: "#00FF00" });
-                    leftSide.appendChild(msg);
-                    setTimeout(() => msg.remove(), 1000);
-                };
-
-                if (history[ip] && history[ip].wc) {
+                // 1. Flag
+                if (data.wc) {
                     const flag = document.createElement("img");
-                    flag.src = `https://flagcdn.com/h20/${history[ip].wc.toLowerCase()}.png`;
+                    flag.src = `https://flagcdn.com/h20/${data.wc.toLowerCase()}.png`;
                     Object.assign(flag.style, { marginRight: "10px", width: "20px", height: "auto" });
                     leftSide.appendChild(flag);
                 }
 
-                const ipText = document.createElement("span"); ipText.innerText = ip;
+                // 2. IP Text (Click to Copy + Toast)
+                const ipText = document.createElement("span");
+                ipText.innerText = ip;
+                ipText.title = "Click to Copy IP";
+                Object.assign(ipText.style, {
+                    fontWeight: "bold",
+                    color: "#ccc",
+                    cursor: "copy",
+                    marginRight: "10px",
+                    borderBottom: "1px dotted #666"
+                });
+
+                ipText.onclick = (e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(ip).then(() => {
+                        // Use existing toast system, centered in settings window if possible
+                        showToast("IP Copied to Clipboard!", document.getElementById('ome-settings-window'));
+                    });
+                    ipText.style.color = "#00FF00";
+                    setTimeout(() => ipText.style.color = "#ccc", 300);
+                };
                 leftSide.appendChild(ipText);
 
+                // Delete Button (X)
                 const delBtn = document.createElement("button"); delBtn.innerText = "❌";
-                Object.assign(delBtn.style, { background: "none", border: "none", cursor: "pointer", paddingLeft: "10px" });
+                Object.assign(delBtn.style, { background: "none", border: "none", cursor: "pointer", paddingLeft: "15px", fontSize: "14px", color: "#FF4444" });
                 delBtn.onclick = (e) => {
                     e.stopPropagation();
-                    loadData().blockedIPs.delete(ip);
+                    blockedIPs.delete(ip);
                     queueSave();
                     renderBlockedIPs();
                 };
 
-                item.appendChild(leftSide);
-                item.appendChild(delBtn);
+                head.appendChild(leftSide);
+                head.appendChild(delBtn);
+                item.appendChild(head);
+
+                // --- EXPANDED BODY (Thumbnail + Note) ---
+                const body = document.createElement("div");
+                Object.assign(body.style, {
+                    display: "none", padding: "10px", borderTop: "1px solid #333", background: "rgba(0,0,0,0.3)"
+                });
+
+                // 1. Thumbnail
+                if (data.thumb) {
+                    const img = document.createElement("img");
+                    img.src = data.thumb;
+                    Object.assign(img.style, {
+                        display: "block", maxWidth: "150px", borderRadius: "4px",
+                        border: "1px solid #555", marginBottom: "10px", cursor: "pointer"
+                    });
+                    img.onclick = () => {
+                        const w = window.open();
+                        w.document.write(`<body style='margin:0; background:#111; display:flex; justify-content:center; align-items:center; height:100vh;'><img src='${data.thumb}' style='max-width:100%; max-height:100%; box-shadow:0 0 20px #000;'></body>`);
+                    };
+                    body.appendChild(img);
+                } else {
+                    const noImg = document.createElement("div");
+                    noImg.innerText = "No image saved for this user.";
+                    Object.assign(noImg.style, { fontSize: "11px", color: "#666", marginBottom: "10px", fontStyle: "italic" });
+                    body.appendChild(noImg);
+                }
+
+                // 2. Note Input
+                const noteInput = document.createElement("input");
+                noteInput.type = "text";
+                noteInput.placeholder = "Add a note...";
+                noteInput.value = data.note || "";
+                Object.assign(noteInput.style, {
+                    width: "100%", padding: "6px", borderRadius: "4px", border: "1px solid #444",
+                    background: "#222", color: "#fff", fontSize: "12px", boxSizing: "border-box", marginBottom: "6px"
+                });
+
+                const saveNoteBtn = document.createElement("button");
+                saveNoteBtn.innerText = "💾 Save Info";
+                Object.assign(saveNoteBtn.style, {
+                    padding: "4px 10px", backgroundColor: "#28a745", color: "white",
+                    border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "11px"
+                });
+                saveNoteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (!history[ip]) history[ip] = { count: 1, lastSeen: Date.now() };
+                    history[ip].note = noteInput.value.trim();
+                    queueSave();
+                    showToast("Info Saved", document.getElementById('ome-settings-window'));
+                };
+
+                body.appendChild(noteInput);
+                body.appendChild(saveNoteBtn);
+
+                head.onclick = () => {
+                    const isHidden = body.style.display === "none";
+                    body.style.display = isHidden ? "block" : "none";
+                    head.dataset.expanded = isHidden ? "true" : "false";
+                    head.style.backgroundColor = isHidden ? "rgba(255, 255, 255, 0.05)" : "transparent";
+                };
+
+                item.appendChild(body);
                 list.appendChild(item);
             });
         }
@@ -2169,186 +3501,945 @@
         const el = document.getElementById(id);
         if (!el) return;
 
-        // Find the track and knob inside the element by class
         const track = el.querySelector('.ome-toggle-track');
         const knob = el.querySelector('.ome-toggle-knob');
 
-        if (track) track.style.backgroundColor = isActive ? "#00E000" : "#444";
-        if (knob) knob.style.transform = isActive ? "translateX(26px)" : "translateX(2px)";
+        if (track) track.style.backgroundColor = isActive ? "#00E000" : "#A00000"; // Red when OFF
+        // [FIX] Adjusted translateX from 26px to 18px so it doesn't go too far right
+        if (knob) knob.style.transform = isActive ? "translateX(18px)" : "translateX(2px)";
     }
 
-    function createAdvancedSettingsWindow() {
+    // [FIX] Accept targetId parameter for scrolling
+    function createAdvancedSettingsWindow(targetId = null) {
         if (document.getElementById("ome-adv-settings-window")) {
             const w = document.getElementById("ome-adv-settings-window");
             w.style.display = w.style.display === "none" ? "flex" : "none";
             if(w.style.display === "flex") {
                 updateMasterToggles();
                 updateStatusDots();
+
+                // Refresh URL field visibility
+                const urlField = document.getElementById("fake-cam-url-row");
+                if (urlField) urlField.style.display = FAKE_CONFIG.enabled ? "flex" : "none";
+
+                // Refresh Spoof visibility
+                const lists = document.getElementById("adv-device-lists-container");
+                if(lists) lists.style.display = FAKE_CONFIG.spoofDeviceNames ? "block" : "none";
+
+                const c = w.querySelector('.ome-scroll-lock');
+                if (c) {
+                    if (targetId) {
+                        const el = document.getElementById(targetId);
+                        if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                    } else {
+                        c.scrollTop = 0;
+                    }
+                }
             }
             return;
         }
 
         const win = document.createElement("div"); win.id = "ome-adv-settings-window"; win.className = "ome-no-select resizable-win";
         Object.assign(win.style, {
-            position: "fixed", top: "15%", left: "55%", width: "400px", maxHeight: "650px",
+            position: "fixed", top: "10%", left: "50%", transform: "translateX(-50%)", width: "420px", maxHeight: "550px",
             backgroundColor: "rgba(20, 20, 25, 0.98)", backdropFilter: "blur(12px)", color: "#FFF",
-            zIndex: "99999999", borderRadius: "12px", border: "1px solid #555",
+            zIndex: "100000010",
+            borderRadius: "12px", border: "1px solid #555",
             display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.8)", paddingBottom: "10px"
         });
 
-        // --- HEADER ---
         const header = document.createElement("div");
-        Object.assign(header.style, { padding: "12px 15px", borderBottom: "1px solid #444", display: "flex", justifyContent: "space-between", alignItems: "center", background: "linear-gradient(to bottom, rgba(40,40,40,0.5), transparent)", borderRadius: "12px 12px 0 0" });
+        Object.assign(header.style, { padding: "12px 15px", borderBottom: "1px solid #444", display: "flex", justifyContent: "space-between", alignItems: "center", background: "linear-gradient(to bottom, rgba(40,40,40,0.5), transparent)", borderRadius: "12px 12px 0 0", flexShrink: "0" });
         header.innerHTML = "<span style='font-size:15px; font-weight:bold; color:#ccc;'>🛠️ Advanced Options</span>";
-
         const closeBtn = document.createElement("button"); closeBtn.innerText = "✖";
-        Object.assign(closeBtn.style, { background: "none", border: "none", color: "#aaa", fontSize: "16px", cursor: "pointer" });
+        Object.assign(closeBtn.style, { background: "none", border: "none", color: "#aaa", fontSize: "16px", cursor: "pointer", padding: "0 10px" });
         closeBtn.onclick = () => win.style.display = "none";
         header.appendChild(closeBtn);
         win.appendChild(header);
 
-        // --- CONTENT AREA ---
         const content = document.createElement("div");
-        Object.assign(content.style, { padding: "15px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", flex: "1" });
+        content.className = "ome-scroll-lock";
+        Object.assign(content.style, { padding: "15px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px", flex: "1", minHeight: "0" });
 
-        // 1. HOST IP DISPLAY
-        const ipSection = document.createElement("div");
-        ipSection.innerHTML = "<div style='font-size:10px; color:#888; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px; font-weight:bold;'>Your Connection</div>";
-        const ownIpContainer = document.createElement("div");
-        ownIpContainer.id = "ome-settings-header-content";
-        Object.assign(ownIpContainer.style, { padding: "10px", background: "rgba(0,0,0,0.3)", borderRadius: "6px", border: "1px solid #444", display:"flex", justifyContent:"center", alignItems:"center" });
-        if(myOwnIPData) updateSettingsHeaderDisplay(ownIpContainer);
-        else ownIpContainer.innerHTML = "<span style='color:#666; font-size:12px;'>Fetching your data...</span>";
-        ipSection.appendChild(ownIpContainer);
-        content.appendChild(ipSection);
+        // --- STYLING HELPERS ---
+        const sectionTitle = (t) => `<div style='font-size:10px; color:#888; margin: 15px 0 5px 4px; text-transform:uppercase; letter-spacing:1px; font-weight:bold;'>${t}</div>`;
 
-        const sectionTitle = (t) => `<div style='font-size:10px; color:#666; margin: 8px 0 4px 0; text-transform:uppercase; letter-spacing:1px; font-weight:bold; border-bottom:1px solid #333; padding-bottom:2px;'>${t}</div>`;
-
-        const createOptBtn = (text, icon, color, action, desc) => {
-            const b = document.createElement("div");
-            Object.assign(b.style, {
-                display: "flex", alignItems: "center", padding: "8px",
-                background: "rgba(255,255,255,0.05)", borderRadius: "6px", cursor: "pointer",
-                border: "1px solid transparent", transition: "all 0.2s"
+        const createGroup = () => {
+            const g = document.createElement("div");
+            Object.assign(g.style, {
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid #333",
+                borderRadius: "8px",
+                display: "flex",
+                flexDirection: "column",
+                flexShrink: "0"
             });
-            b.onmouseover = () => { b.style.background = "rgba(255,255,255,0.1)"; b.style.borderColor = "#444"; };
-            b.onmouseout = () => { b.style.background = "rgba(255,255,255,0.05)"; b.style.borderColor = "transparent"; };
-            b.onclick = action;
+            return g;
+        };
 
-            const ico = document.createElement("div"); ico.innerText = icon;
-            Object.assign(ico.style, { fontSize: "18px", marginRight: "12px", width: "24px", textAlign: "center" });
-
-            const txtDiv = document.createElement("div"); txtDiv.style.flex = "1";
-            txtDiv.innerHTML = `<div style="font-weight:bold; font-size:13px; color:${color}; margin-bottom:1px;">${text}</div><div style="font-size:10px; color:#aaa;">${desc}</div>`;
-
-            b.appendChild(ico); b.appendChild(txtDiv);
-            return b;
+        const rowStyle = {
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "10px 12px",
+            background: "transparent",
+            borderBottom: "1px solid #333",
+            cursor: "pointer",
+            transition: "background 0.2s",
+            minHeight: "40px"
+        };
+        const rowHover = (el) => {
+            el.onmouseover = () => el.style.background = "rgba(255,255,255,0.08)";
+            el.onmouseout = () => el.style.background = "transparent";
         };
 
         const createToggleRow = (id, label, icon, isEnabled, onToggle) => {
-            const div = document.createElement("div");
-            div.id = id;
-            Object.assign(div.style, { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px", background:"rgba(255,255,255,0.03)", borderRadius:"6px", cursor: "pointer" });
+            const div = document.createElement("div"); div.id = id;
+            Object.assign(div.style, rowStyle);
+            rowHover(div);
 
             const left = document.createElement("div"); left.style.display="flex"; left.style.alignItems="center";
-            left.innerHTML = `<span style="font-size:18px; margin-right:10px;">${icon}</span><span style="font-size:13px; font-weight:bold; color:#eee;">${label}</span>`;
+            left.innerHTML = `<span style="font-size:18px; margin-right:12px; width:20px; text-align:center;">${icon}</span><span style="font-size:13px; font-weight:bold; color:#eee;">${label}</span>`;
 
-            const tBtn = document.createElement("div");
-            tBtn.className = "ome-toggle-track";
+            const tBtn = document.createElement("div"); tBtn.className = "ome-toggle-track";
+            tBtn.style.backgroundColor = isEnabled ? "#00E000" : "#A00000";
+            tBtn.style.width = "40px"; tBtn.style.height = "20px";
 
-            tBtn.style.backgroundColor = isEnabled ? "#00E000" : "#444";
-            tBtn.style.width = "46px"; tBtn.style.height = "22px";
-            tBtn.innerHTML = `<div class="ome-toggle-knob" style="transition: transform 0.2s; width:18px; height:18px; transform: ${isEnabled ? 'translateX(26px)' : 'translateX(2px)'}"></div>`;
+            tBtn.innerHTML = `<div class="ome-toggle-knob" style="transition: transform 0.2s; width:16px; height:16px; top:2px; transform: ${isEnabled ? 'translateX(18px)' : 'translateX(2px)'}"></div>`;
 
-            div.onclick = onToggle;
-            div.appendChild(left); div.appendChild(tBtn);
+            div.onclick = onToggle; div.appendChild(left); div.appendChild(tBtn);
             return div;
         };
 
-        // 2. BLOCKING CONFIG
-        const blockDiv = document.createElement("div");
-        blockDiv.innerHTML = sectionTitle("Blocking Rules");
-        blockDiv.appendChild(createToggleRow("adv-toggle-ip-block", "IP Blocking", "🛡️", ipBlockingEnabled, () => {
-            ipBlockingEnabled = !ipBlockingEnabled; updateMasterToggles(); queueSave();
-        }));
-        blockDiv.appendChild(createToggleRow("adv-toggle-country-block", "Country Blocking", "🌍", countryBlockingEnabled, () => {
-            countryBlockingEnabled = !countryBlockingEnabled; updateMasterToggles(); queueSave();
-        }));
-        content.appendChild(blockDiv);
+        const createOptBtn = (text, icon, color, action, desc) => {
+            const b = document.createElement("div");
+            Object.assign(b.style, rowStyle);
+            rowHover(b);
+            b.onclick = action;
 
-        // 3. CORE FEATURES
-        const coreDiv = document.createElement("div");
-        coreDiv.innerHTML = sectionTitle("Core Features");
-        coreDiv.appendChild(createToggleRow("adv-toggle-ip-grab", "IP Grabber", "📡", isIPGrabbingEnabled, () => {
-            isIPGrabbingEnabled = !isIPGrabbingEnabled; updateStatusDots();
+            const ico = document.createElement("div"); ico.innerText = icon;
+            Object.assign(ico.style, { fontSize: "18px", marginRight: "12px", width: "20px", textAlign: "center" });
+
+            const txtDiv = document.createElement("div"); txtDiv.style.flex = "1";
+            txtDiv.innerHTML = `<div style="font-weight:bold; font-size:13px; color:${color};">${text}</div><div style="font-size:10px; color:#888; margin-top:2px;">${desc}</div>`;
+
+            const arrow = document.createElement("div");
+            arrow.innerHTML = "›";
+            arrow.style.color = "#555"; arrow.style.fontSize = "18px"; arrow.style.fontWeight = "bold";
+
+            b.appendChild(ico); b.appendChild(txtDiv); b.appendChild(arrow);
+            return b;
+        };
+
+        // 1. IP HEADER
+        const ipSection = document.createElement("div");
+        const ownIpContainer = document.createElement("div"); ownIpContainer.id = "ome-settings-header-content";
+        Object.assign(ownIpContainer.style, { padding: "10px", background: "rgba(0,0,0,0.3)", borderRadius: "6px", border: "1px solid #444", display:"flex", justifyContent:"center", alignItems:"center", marginBottom: "5px", flexShrink: "0" });
+        if(myOwnIPData) updateSettingsHeaderDisplay(ownIpContainer); else ownIpContainer.innerHTML = "<span style='color:#666;'>Fetching data...</span>";
+        ipSection.appendChild(ownIpContainer); content.appendChild(ipSection);
+
+        // 2. BLOCKING GROUP
+        const blockHeader = document.createElement("div"); blockHeader.innerHTML = sectionTitle("Blocking Rules");
+        content.appendChild(blockHeader);
+
+        const blockGroup = createGroup();
+
+        // Country Blocking (Updated)
+        blockGroup.appendChild(createToggleRow("adv-toggle-country-block", "Country Blocking", "🌍", countryBlockingEnabled, () => {
+            countryBlockingEnabled = !countryBlockingEnabled;
+
+            // [NEW] Auto-Enable Grabber
+            if (countryBlockingEnabled && !isIPGrabbingEnabled) {
+                isIPGrabbingEnabled = true;
+                GM_setValue('ome_ip_grabbing', true);
+                updateAdvToggleVisual("adv-toggle-ip-grab", true); // Sync visual
+                showToast("IP Grabber Auto-Enabled");
+            }
+
+            updateMasterToggles(); saveCoreSettings(); updateAdvToggleVisual("adv-toggle-country-block", countryBlockingEnabled);
         }));
-        coreDiv.appendChild(createToggleRow("adv-toggle-face-bypass", "Face Bypass", "🎭", isFaceProtectionEnabled, () => {
-            isFaceProtectionEnabled = !isFaceProtectionEnabled;
-            window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'face', enabled: isFaceProtectionEnabled } }));
+
+        // IP Blocking (Updated)
+        blockGroup.appendChild(createToggleRow("adv-toggle-ip-block", "IP Blocking", "🛡️", ipBlockingEnabled, () => {
+            ipBlockingEnabled = !ipBlockingEnabled;
+
+            // [NEW] Auto-Enable Grabber
+            if (ipBlockingEnabled && !isIPGrabbingEnabled) {
+                isIPGrabbingEnabled = true;
+                GM_setValue('ome_ip_grabbing', true);
+                updateAdvToggleVisual("adv-toggle-ip-grab", true); // Sync visual
+                showToast("IP Grabber Auto-Enabled");
+            }
+
+            updateMasterToggles(); saveCoreSettings(); updateAdvToggleVisual("adv-toggle-ip-block", ipBlockingEnabled);
+        }));
+
+        blockGroup.lastChild.style.borderBottom = "none";
+        content.appendChild(blockGroup);
+
+        // --- 3. CORE FEATURES GROUP (REORDERED) ---
+        const coreHeader = document.createElement("div");
+        coreHeader.innerHTML = sectionTitle("Core Features");
+        content.appendChild(coreHeader);
+
+        const coreGroup = createGroup();
+
+        // [MOVED UP] IP Grabber (Now First)
+        coreGroup.appendChild(createToggleRow("adv-toggle-ip-grab", "IP Grabber", "📡", isIPGrabbingEnabled, () => {
+            isIPGrabbingEnabled = !isIPGrabbingEnabled;
+            GM_setValue('ome_ip_grabbing', isIPGrabbingEnabled);
+            updateStatusDots();
+
+            // [UPDATED] Disable BOTH Blockers if Grabber is OFF
+            if (!isIPGrabbingEnabled) {
+                if (ipBlockingEnabled || countryBlockingEnabled) {
+                    ipBlockingEnabled = false;
+                    countryBlockingEnabled = false;
+                    updateMasterToggles();
+                    updateAdvToggleVisual("adv-toggle-ip-block", false);
+                    updateAdvToggleVisual("adv-toggle-country-block", false);
+                    showToast("Blockers Disabled (Requires Grabber)");
+                }
+            }
+        }));
+
+        // [MOVED UP] Raw Audio (Now Second)
+        coreGroup.appendChild(createToggleRow("adv-toggle-raw-audio", "Raw Audio", "🎤", FAKE_CONFIG.rawAudio, () => {
+            FAKE_CONFIG.rawAudio = !FAKE_CONFIG.rawAudio;
+            GM_setValue('ome_raw_audio', FAKE_CONFIG.rawAudio);
+            updateStatusDots();
+            showToast("Reload required to apply");
+        }));
+
+        coreGroup.appendChild(createToggleRow("adv-toggle-face-bypass", "Face Bypass", "🎭", isFaceProtectionEnabled, () => {
+            isFaceProtectionEnabled = !isFaceProtectionEnabled; GM_setValue('ome_face_protection', isFaceProtectionEnabled); window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'face', enabled: isFaceProtectionEnabled } })); updateStatusDots();
+        }));
+        coreGroup.appendChild(createToggleRow("adv-toggle-report-prot", "Report Protection", "🛡️", isReportProtectionEnabled, () => {
+            isReportProtectionEnabled = !isReportProtectionEnabled; GM_setValue('ome_report_protection', isReportProtectionEnabled); window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'report', enabled: isReportProtectionEnabled } })); updateStatusDots();
+        }));
+        coreGroup.appendChild(createToggleRow("adv-toggle-fingerprint", "Fingerprint Spoofing", "🧬", isFingerprintSpoofingEnabled, () => {
+            isFingerprintSpoofingEnabled = !isFingerprintSpoofingEnabled;
+            GM_setValue('ome_fingerprint_spoofing', isFingerprintSpoofingEnabled);
+            updateStatusDots();
+            showToast("Reload required to apply");
+        }));
+        coreGroup.appendChild(createToggleRow("adv-toggle-antiban", "Jitter Bot", "🛡️", FAKE_CONFIG.antiBanFrames, () => {
+            FAKE_CONFIG.antiBanFrames = !FAKE_CONFIG.antiBanFrames;
+            GM_setValue('ome_antiban_frames', FAKE_CONFIG.antiBanFrames);
             updateStatusDots();
         }));
-        coreDiv.appendChild(createToggleRow("adv-toggle-report-prot", "Report Protection", "🛡️", isReportProtectionEnabled, () => {
-            isReportProtectionEnabled = !isReportProtectionEnabled;
-            window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'report', enabled: isReportProtectionEnabled } }));
+        coreGroup.appendChild(createToggleRow("adv-toggle-antibot", "Anti-Bot Bypass (Variance)", "🤖", isAntiBotEnabled, () => {
+            isAntiBotEnabled = !isAntiBotEnabled;
+            GM_setValue('ome_anti_bot', isAntiBotEnabled);
+            updateStatusDots();
+            showToast("Reload required to apply");
+        }));
+        coreGroup.appendChild(createToggleRow("adv-toggle-force-relay", "Request Relay (Hide IP)", "🖧", FAKE_CONFIG.forceRelay, () => {
+            FAKE_CONFIG.forceRelay = !FAKE_CONFIG.forceRelay;
+            GM_setValue('ome_force_relay', FAKE_CONFIG.forceRelay);
             updateStatusDots();
         }));
-        content.appendChild(coreDiv);
+        coreGroup.appendChild(createToggleRow("adv-toggle-udp-strict", "Connect Only to TURN servers", "⚠️", FAKE_CONFIG.udpStrict, () => {
+            FAKE_CONFIG.udpStrict = !FAKE_CONFIG.udpStrict;
+            GM_setValue('ome_udp_strict', FAKE_CONFIG.udpStrict);
+            updateStatusDots();
+            showToast(FAKE_CONFIG.udpStrict ? "Strict UDP: ON" : "Strict UDP: OFF");
+        }));
 
-        // 4. UI & VISUALS
-        const uiDiv = document.createElement("div");
-        uiDiv.innerHTML = sectionTitle("Interface & Stealth");
-        uiDiv.appendChild(createOptBtn("Toggle Ghost Mode", "👻", "#00FFFF", () => toggleGhostMode(document.getElementById("ip-log-window")), "Make the extension transparent"));
-        uiDiv.appendChild(createOptBtn("Toggle Dark/Hide Mode", "👁️", "#FFFFFF", () => toggleWatermarks(), "Hide watermarks & logos"));
-        uiDiv.appendChild(createOptBtn("Select Element to Hide", "🟥", "#FF4444", () => { win.style.display="none"; startSelector('hide'); }, "Click an element on screen to hide it"));
-        uiDiv.appendChild(createOptBtn("Select Element to Unhide", "🟩", "#00FF00", () => { win.style.display="none"; startSelector('unhide'); }, "Restore a specific hidden element"));
-        uiDiv.appendChild(createOptBtn("Unhide ALL Elements", "🟧", "#FFA500", unhideAllElements, "Reset all custom hidden elements"));
-        content.appendChild(uiDiv);
+        // Existing Fake Cam Toggle
+        coreGroup.appendChild(createToggleRow("adv-toggle-fake-cam", "Fake Camera", "📷", FAKE_CONFIG.enabled, () => {
+            FAKE_CONFIG.enabled = !FAKE_CONFIG.enabled;
+            GM_setValue('ome_fake_cam_enabled', FAKE_CONFIG.enabled);
+            updateStatusDots();
+            // Refresh URL row visibility
+            const urlRow = document.getElementById("fake-cam-url-row");
+            if(urlRow) urlRow.style.display = FAKE_CONFIG.enabled ? "flex" : "none";
+            // Refresh Resolution row visibility
+            const resRow = document.getElementById("fake-cam-res-row");
+            if(resRow) resRow.style.display = FAKE_CONFIG.enabled ? "flex" : "none";
+        }));
 
-        // 5. UTILITIES
-        const utilsDiv = document.createElement("div");
-        utilsDiv.innerHTML = sectionTitle("Tools");
-        utilsDiv.appendChild(createOptBtn("Developer Console", "📟", "#00FF00", toggleDevConsole, "View raw logs, errors & events"));
-        utilsDiv.appendChild(createOptBtn("Location Map", "🗺️", "#64B5F6", () => { createMapWindow(); document.getElementById("ome-map-window").style.display = "flex"; }, "Open the location visualizer"));
-        utilsDiv.appendChild(createOptBtn("Edit Current Note", "📝", "#FFD700", () => { if(currentIP) openNoteEditor(currentIP); else showToast("No Active IP", win); }, "Add note to current connection"));
-        content.appendChild(utilsDiv);
-
-        // 6. DANGER ZONE
-        const dangerDiv = document.createElement("div");
-        dangerDiv.innerHTML = sectionTitle("Danger Zone");
-        dangerDiv.appendChild(createOptBtn("Reset All Data", "⚠️", "#FF4444", clearAllData, "Wipe history, blocks & settings"));
-        content.appendChild(dangerDiv);
-
-        // --- ABOUT ME FOOTER (CLICKABLE) ---
-        const footer = document.createElement("div");
-        Object.assign(footer.style, {
-            marginTop: "10px", padding: "10px", backgroundColor: "rgba(0,0,0,0.2)",
-            textAlign: "center", fontSize: "11px", color: "#666", lineHeight: "1.6",
-            borderRadius: "6px", border: "1px solid #333"
+        // [NEW] RESOLUTION DROPDOWN (Visible only when Fake Cam is ON)
+        const resRow = document.createElement("div");
+        resRow.id = "fake-cam-res-row";
+        Object.assign(resRow.style, {
+            display: FAKE_CONFIG.enabled ? "flex" : "none",
+            alignItems: "center", justifyContent: "space-between",
+            padding: "10px", background: "rgba(0,0,0,0.3)", borderBottom: "1px solid #333"
         });
 
-        const linkStyle = "color: #888; text-decoration: none; font-weight: bold; transition: color 0.2s;";
-        const hoverScript = "this.style.color='#fff'";
-        const outScript = "this.style.color='#888'";
+        const resLabel = document.createElement("span");
+        resLabel.innerText = "Camera Resolution:";
+        resLabel.style.fontSize = "12px"; resLabel.style.color = "#ccc";
 
-        footer.innerHTML = `
-            <div style="font-weight: bold; color: #555; text-transform: uppercase; margin-bottom: 4px;">ome-ip v2.2</div>
-            <div style="margin-bottom:2px;">
-                <a href="https://github.com/EolnMsuk" target="_blank" style="${linkStyle}" onmouseover="${hoverScript}" onmouseout="${outScript}">github.com/EolnMsuk</a>
+        const resSelect = document.createElement("select");
+        Object.assign(resSelect.style, {
+            padding: "4px", borderRadius: "4px", background: "#222", color: "#fff", border: "1px solid #555"
+        });
+
+        const resolutions = ["640x480", "1280x720", "1920x1080", "320x240"];
+        resolutions.forEach(res => {
+            const opt = document.createElement("option");
+            opt.value = res;
+            opt.innerText = res;
+            if (`${FAKE_CONFIG.canvasSize.width}x${FAKE_CONFIG.canvasSize.height}` === res) opt.selected = true;
+            resSelect.appendChild(opt);
+        });
+
+        resSelect.onchange = (e) => {
+            const val = e.target.value;
+            const [w, h] = val.split('x').map(Number);
+            FAKE_CONFIG.canvasSize = { width: w, height: h };
+            GM_setValue('ome_cam_resolution', val);
+            // Update the fake frame canvas size immediately if it exists
+            if (window.fakeFrameCanvas) {
+                window.fakeFrameCanvas.width = w;
+                window.fakeFrameCanvas.height = h;
+            }
+            showToast(`Resolution set to ${val} (Reload to apply)`);
+        };
+
+        resRow.appendChild(resLabel);
+        resRow.appendChild(resSelect);
+        coreGroup.appendChild(resRow);
+
+        // [NEW] THUMBNAIL HISTORY TOGGLE
+        coreGroup.appendChild(createToggleRow("adv-toggle-thumbs", "Thumbnail History", "🖼️", isThumbnailCaptureEnabled, () => {
+            isThumbnailCaptureEnabled = !isThumbnailCaptureEnabled;
+            GM_setValue('ome_thumb_capture', isThumbnailCaptureEnabled);
+            showToast(`Thumbnail Capture: ${isThumbnailCaptureEnabled ? "ON" : "OFF"}`);
+        }));
+
+        // [NEW] REPORT SOUND TOGGLE
+        coreGroup.appendChild(createToggleRow("adv-toggle-rep-sound", "Report Sounds", "🔊", isReportSoundEnabled, () => {
+            isReportSoundEnabled = !isReportSoundEnabled;
+            GM_setValue('ome_report_sound', isReportSoundEnabled);
+            showToast(`Report Alerts: ${isReportSoundEnabled ? "Sound ON" : "Silent (Visual Only)"}`);
+        }));
+
+        // URL Input Field
+        const urlRow = document.createElement("div");
+        urlRow.id = "fake-cam-url-row";
+        Object.assign(urlRow.style, {
+            display: FAKE_CONFIG.enabled ? "flex" : "none",
+            flexDirection: "column",
+            padding: "10px",
+            background: "rgba(0,0,0,0.3)",
+            borderBottom: "1px solid #333"
+        });
+        const urlLabel = document.createElement("span");
+        urlLabel.innerText = "Custom Video URL (.mp4):";
+        urlLabel.style.fontSize = "11px"; urlLabel.style.color = "#aaa"; urlLabel.style.marginBottom = "6px";
+        const urlInput = document.createElement("input");
+        urlInput.type = "text";
+        urlInput.value = FAKE_CONFIG.videoURL || "https://i.imgur.com/Bf7cILv.mp4";
+        Object.assign(urlInput.style, {
+            width: "100%", padding: "6px", borderRadius: "4px", border: "1px solid #555",
+            background: "#111", color: "#00FF00", fontSize:"12px", boxSizing: "border-box"
+        });
+        urlInput.onchange = (e) => {
+            FAKE_CONFIG.videoURL = e.target.value;
+            GM_setValue('ome_fake_video_url', FAKE_CONFIG.videoURL);
+        };
+        urlRow.appendChild(urlLabel);
+        urlRow.appendChild(urlInput);
+        coreGroup.appendChild(urlRow);
+
+        content.appendChild(coreGroup);
+
+        // 4. DEVICE CONFIG GROUP
+        const devHeader = document.createElement("div"); devHeader.innerHTML = sectionTitle("Device Configurations");
+        content.appendChild(devHeader);
+
+        const devGroup = createGroup();
+
+        // Spoof Toggle
+        const spoofToggle = createToggleRow("adv-toggle-device-spoof", "Spoof Device Names", "🏷️", FAKE_CONFIG.spoofDeviceNames, () => {
+            const newState = !FAKE_CONFIG.spoofDeviceNames;
+            FAKE_CONFIG.spoofDeviceNames = newState;
+            GM_setValue('ome_spoof_devices', newState);
+
+            // [UPDATED] SYNC LOGIC: Force "One Mode" settings to match the Spoof toggle
+            FAKE_CONFIG.oneCameraMode = newState;
+            FAKE_CONFIG.oneInputMode = newState;
+            FAKE_CONFIG.oneOutputMode = newState;
+
+            // Save the synced state
+            GM_setValue('ome_one_cam_mode', newState);
+            GM_setValue('ome_one_input_mode', newState);
+            GM_setValue('ome_one_output_mode', newState);
+
+            updateStatusDots();
+
+            // Update the main list visibility
+            const lists = document.getElementById("adv-device-lists-container");
+            if(lists) {
+                lists.style.display = newState ? "block" : "none";
+
+                // Update the visual state of the sub-toggles inside the list
+                updateAdvToggleVisual("adv-toggle-one-cam", newState);
+                updateAdvToggleVisual("adv-toggle-one-mic", newState);
+                updateAdvToggleVisual("adv-toggle-one-spk", newState);
+
+                // Update text labels to reflect the new state (One vs Multi)
+                const camRow = document.getElementById("adv-toggle-one-cam");
+                if (camRow) camRow.querySelector('span:nth-child(2)').innerText = newState ? "One Camera Mode" : "Multi Camera Mode";
+
+                const micRow = document.getElementById("adv-toggle-one-mic");
+                if (micRow) micRow.querySelector('span:nth-child(2)').innerText = newState ? "One Input Mode" : "Multi Input Mode";
+
+                const spkRow = document.getElementById("adv-toggle-one-spk");
+                if (spkRow) spkRow.querySelector('span:nth-child(2)').innerText = newState ? "One Output Mode" : "Multi Output Mode";
+
+                // Show/Hide the extra input rows based on the new state
+                lists.querySelectorAll('.multi-input-row').forEach(row => {
+                    // Skip the first row (index 0) of every group, hide the rest if Mode is ON
+                    const parent = row.parentElement;
+                    const index = Array.from(parent.children).indexOf(row);
+                    if (index > 0) row.style.display = newState ? 'none' : 'block';
+                });
+            }
+
+            showToast(`Spoofing & One Mode: ${newState ? "ON" : "OFF"}`);
+        });
+        spoofToggle.style.borderBottom = "1px solid #333";
+        devGroup.appendChild(spoofToggle);
+
+        // Lists Container
+        const listsContainer = document.createElement("div");
+        listsContainer.id = "adv-device-lists-container";
+        listsContainer.style.display = FAKE_CONFIG.spoofDeviceNames ? "block" : "none";
+        listsContainer.style.padding = "10px";
+        listsContainer.style.background = "rgba(0,0,0,0.2)";
+
+        const createLabelSection = (title, icon, dataArray, storageKey, toggleId, toggleLabel, isOneMode, toggleStorageKey, togglePropName, typeName) => {
+            const container = document.createElement("div");
+            Object.assign(container.style, { background: "rgba(255,255,255,0.05)", borderRadius: "6px", border: "1px solid #333", padding: "10px", marginBottom: "10px" });
+
+            const topRow = createToggleRow(toggleId, isOneMode ? `One ${typeName} Mode` : `Multi ${typeName} Mode`, icon, isOneMode, () => {
+                const newState = !FAKE_CONFIG[togglePropName];
+                FAKE_CONFIG[togglePropName] = newState;
+                GM_setValue(toggleStorageKey, newState);
+                updateAdvToggleVisual(toggleId, newState);
+
+                const rows = container.querySelectorAll('.multi-input-row');
+                rows.forEach((r, idx) => { if(idx > 0) r.style.display = newState ? 'none' : 'block'; });
+
+                const labelSpan = topRow.querySelector('span:nth-child(2)');
+                if(labelSpan) labelSpan.innerText = newState ? `One ${typeName} Mode` : `Multi ${typeName} Mode`;
+
+                showToast(`${toggleLabel}: ${newState ? "ON" : "OFF"}`);
+            });
+            topRow.style.borderBottom = "none";
+            topRow.style.padding = "0 0 8px 0";
+
+            container.appendChild(topRow);
+            const inputWrapper = document.createElement("div");
+            for(let i=0; i<4; i++) {
+                const row = document.createElement("div");
+                row.className = "multi-input-row";
+                if (isOneMode && i > 0) row.style.display = "none";
+                Object.assign(row.style, { marginBottom: "6px" });
+                const lbl = document.createElement("div"); lbl.innerText = `${title} ${i+1}:`;
+                Object.assign(lbl.style, { fontSize:"10px", color:"#888", marginBottom:"2px", fontWeight:"bold" });
+                const inp = document.createElement("input"); inp.type = "text"; inp.value = dataArray[i] || ""; inp.placeholder = "Leave empty to skip";
+                Object.assign(inp.style, { width: "100%", padding: "5px", borderRadius: "4px", border: "1px solid #555", background: "#111", color: "#00FF00", fontSize:"12px", boxSizing:"border-box" });
+                inp.onchange = (e) => { dataArray[i] = e.target.value; GM_setValue(storageKey, JSON.stringify(dataArray)); };
+                row.appendChild(lbl); row.appendChild(inp); inputWrapper.appendChild(row);
+            }
+            container.appendChild(inputWrapper);
+            return container;
+        };
+
+        listsContainer.appendChild(createLabelSection("Camera", "📷", FAKE_CONFIG.videoLabels, 'ome_video_labels', "adv-toggle-one-cam", "One Camera Mode", FAKE_CONFIG.oneCameraMode, 'ome_one_cam_mode', 'oneCameraMode', 'Camera'));
+        listsContainer.appendChild(createLabelSection("Mic", "🎤", FAKE_CONFIG.audioInputLabels, 'ome_audio_input_labels', "adv-toggle-one-mic", "One Input Mode", FAKE_CONFIG.oneInputMode, 'ome_one_input_mode', 'oneInputMode', 'Input'));
+        listsContainer.appendChild(createLabelSection("Speaker", "🔊", FAKE_CONFIG.audioOutputLabels, 'ome_audio_output_labels', "adv-toggle-one-spk", "One Output Mode", FAKE_CONFIG.oneOutputMode, 'ome_one_output_mode', 'oneOutputMode', 'Output'));
+
+        devGroup.appendChild(listsContainer);
+        content.appendChild(devGroup);
+
+        // 5. TOOLS & UI GROUP
+        const uiHeader = document.createElement("div"); uiHeader.innerHTML = sectionTitle("Tools & UI");
+        content.appendChild(uiHeader);
+
+        const uiGroup = createGroup();
+        uiGroup.appendChild(createOptBtn("Saved Screenshots", "📸", "#00FFFF", () => { createScreenshotHistoryWindow(); }, "View Captured Thumbs"));
+        uiGroup.appendChild(createOptBtn("Saved Notes", "📝", "#FFD700", () => { createNotesListWindow(); }, "Manage IP Notes"));
+        uiGroup.appendChild(createOptBtn("Dev Console", "📟", "#00FF00", toggleDevConsole, "Logs"));
+        uiGroup.appendChild(createOptBtn("Unhide ALL", "🟧", "#FFA500", unhideAllElements, "Reset hidden"));
+        uiGroup.appendChild(createOptBtn("Toggle Dark Mode", "👁️", "#FF4444", () => toggleWatermarks(), "Hide watermarks"));
+        uiGroup.appendChild(createOptBtn("Toggle Ghost Mode", "👻", "#FFFFFF", () => toggleGhostMode(document.getElementById("ip-log-window")), "Transparent"));
+
+        uiGroup.lastChild.style.borderBottom = "none";
+        content.appendChild(uiGroup);
+
+        // 6. DANGER GROUP (Reset Settings moved here)
+        const dangerHeader = document.createElement("div"); dangerHeader.innerHTML = sectionTitle("Danger Zone");
+        content.appendChild(dangerHeader);
+
+        const dangerGroup = createGroup();
+
+        // [MOVED HERE] Reset Settings
+        const resetBtn = document.createElement("div");
+        Object.assign(resetBtn.style, rowStyle);
+        rowHover(resetBtn);
+        resetBtn.onclick = resetSettingsOnly;
+        resetBtn.innerHTML = `
+            <div style="font-size:18px; margin-right:12px; width:20px; text-align:center;">↻</div>
+            <div style="flex:1;">
+                <div style="font-weight:bold; font-size:13px; color:#0099FF;">Reset Settings</div>
+                <div style="font-size:10px; color:#888; margin-top:2px;">Keeps History, Blocks & Notes safe</div>
             </div>
-            <div style="margin-bottom:2px;">
-                <a href="https://discord.gg/omeglestream" target="_blank" style="${linkStyle}" onmouseover="${hoverScript}" onmouseout="${outScript}">discord.gg/omeglestream</a>
-            </div>
-            <div>
-                <a href="https://cash.app/$eolnmsuk" target="_blank" style="${linkStyle}" onmouseover="${hoverScript}" onmouseout="${outScript}">cash.app/$eolnmsuk</a>
-            </div>
+            <div style="color:#555; font-size:16px;">›</div>
         `;
-        content.appendChild(footer);
+        dangerGroup.appendChild(resetBtn);
 
+        // Reset All Data
+        dangerGroup.appendChild(createOptBtn("Reset All Data", "⚠️", "#FF4444", clearAllData, "Wipe everything"));
+        dangerGroup.lastChild.style.borderBottom = "none";
+        content.appendChild(dangerGroup);
+
+        // 7. FOOTER LINKS
+        const footerGroup = createGroup();
+        Object.assign(footerGroup.style, { marginTop: "20px" });
+
+        const createLinkRow = (text, icon, color, url) => {
+            const a = document.createElement("a");
+            a.href = url;
+            a.target = "_blank";
+            Object.assign(a.style, rowStyle);
+            a.style.textDecoration = "none";
+            rowHover(a);
+
+            const ico = document.createElement("div"); ico.innerText = icon;
+            Object.assign(ico.style, { fontSize: "18px", marginRight: "12px", width: "20px", textAlign: "center" });
+
+            const txt = document.createElement("div");
+            txt.innerText = text;
+            Object.assign(txt.style, { fontWeight: "bold", fontSize: "13px", color: color, flex: "1" });
+
+            const arrow = document.createElement("div");
+            arrow.innerHTML = "↗";
+            arrow.style.color = "#555"; arrow.style.fontSize = "16px";
+
+            a.appendChild(ico); a.appendChild(txt); a.appendChild(arrow);
+            return a;
+        };
+
+        footerGroup.appendChild(createLinkRow("GitHub (ome-ip)", "💻", "#666", "https://github.com/EolnMsuk"));
+        footerGroup.appendChild(createLinkRow("Discord (OmegleStream)", "💬", "#7289da", "https://discord.gg/omeglestream"));
+        footerGroup.appendChild(createLinkRow("Donate ($eolnmsuk)", "💸", "#00D632", "https://cash.app/$eolnmsuk"));
+        footerGroup.lastChild.style.borderBottom = "none";
+        content.appendChild(footerGroup);
+
+        win.appendChild(content); document.body.appendChild(win); makeDraggable(header, win); sandboxWindowEvents(win);
+
+        if (targetId) {
+             const el = document.getElementById(targetId);
+             if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+        } else {
+             content.scrollTop = 0;
+        }
+    }
+
+    // [REQ 9] NEW NOTES LIST WINDOW
+    function createNotesListWindow() {
+        if (document.getElementById("ome-notes-list-window")) {
+            const w = document.getElementById("ome-notes-list-window");
+            w.style.display = w.style.display === "none" ? "flex" : "none";
+            if(w.style.display === "flex") renderNotesList();
+            return;
+        }
+
+        const win = document.createElement("div"); win.id = "ome-notes-list-window"; win.className = "ome-no-select resizable-win";
+        Object.assign(win.style, {
+            position: "fixed", top: "150px", left: "200px", width: "400px", height: "500px",
+            backgroundColor: "rgba(17, 17, 17, 0.98)", backdropFilter: "blur(10px)", color: "#FFF",
+            zIndex: "100000020",
+            borderRadius: "12px", border: "1px solid #555",
+            display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.8)"
+        });
+
+        // Header
+        const header = document.createElement("div");
+        Object.assign(header.style, { padding: "12px", borderBottom: "1px solid #444", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(34,34,34,0.8)", borderRadius: "12px 12px 0 0" });
+        header.innerHTML = "<span style='font-size:14px; font-weight:bold;'>📝 Saved Notes</span>";
+
+        const headerBtns = document.createElement("div"); headerBtns.style.display = "flex"; headerBtns.style.gap = "8px";
+
+        // Copy All Button
+        const copyAllBtn = document.createElement("button"); copyAllBtn.innerText = "📋 Copy All";
+        Object.assign(copyAllBtn.style, { padding: "4px 8px", background: "#007BFF", border: "none", borderRadius: "4px", color: "white", fontSize: "11px", cursor: "pointer" });
+        copyAllBtn.onclick = () => {
+            const { history } = loadData();
+            const entries = Object.entries(history).filter(([ip, data]) => data.note && data.note.trim());
+            if(entries.length === 0) return showToast("No notes to copy", win);
+            const txt = entries.map(([ip, data]) => `IP: ${ip}\nNote: ${data.note}\n`).join("\n---\n");
+            navigator.clipboard.writeText(txt).then(() => showToast("All Notes Copied", win));
+        };
+
+        // Delete All Button
+        const delAllBtn = document.createElement("button"); delAllBtn.innerText = "🗑️ Del All";
+        Object.assign(delAllBtn.style, { padding: "4px 8px", background: "#DC3545", border: "none", borderRadius: "4px", color: "white", fontSize: "11px", cursor: "pointer" });
+        delAllBtn.onclick = () => {
+            if(!confirm("Delete ALL notes? This removes notes from IPs but keeps IP history.")) return;
+            const { history } = loadData();
+            let count = 0;
+            Object.keys(history).forEach(ip => {
+                if(history[ip].note) { delete history[ip].note; count++; }
+            });
+            queueSave(); renderNotesList();
+            showToast(`${count} Notes Deleted`, win);
+        };
+
+        const closeBtn = document.createElement("button"); closeBtn.innerText = "✖";
+        Object.assign(closeBtn.style, { background: "none", border: "none", color: "#aaa", fontSize: "16px", cursor: "pointer", marginLeft: "10px" });
+        closeBtn.onclick = () => win.style.display = "none";
+
+        headerBtns.appendChild(copyAllBtn);
+        headerBtns.appendChild(delAllBtn);
+        headerBtns.appendChild(closeBtn);
+        header.appendChild(headerBtns);
+        win.appendChild(header);
+
+        // Content
+        const content = document.createElement("div"); content.id = "ome-notes-list-content";
+        content.className = "ome-scroll-lock";
+        Object.assign(content.style, { padding: "10px", overflowY: "auto", flex: "1", display: "flex", flexDirection: "column", gap: "8px" });
         win.appendChild(content);
+
         document.body.appendChild(win);
         makeDraggable(header, win);
+        makeResizable(win);
         sandboxWindowEvents(win);
+        renderNotesList();
     }
+
+    function renderNotesList() {
+        const container = document.getElementById("ome-notes-list-content");
+        if(!container) return;
+        container.innerHTML = "";
+
+        const { history, blockedIPs } = loadData();
+        const entries = Object.entries(history).filter(([ip, data]) => data.note && data.note.trim() !== "");
+
+        if(entries.length === 0) {
+            container.innerHTML = "<div style='text-align:center; color:#666; padding:20px;'>No saved notes found.</div>";
+            return;
+        }
+
+        // Sort newest first based on lastSeen
+        entries.sort((a,b) => (b[1].lastSeen || 0) - (a[1].lastSeen || 0));
+
+        entries.forEach(([ip, data]) => {
+            const item = document.createElement("div");
+            Object.assign(item.style, {
+                background: "rgba(255,255,255,0.05)",
+                borderRadius: "6px",
+                border: "1px solid #333",
+                overflow: "hidden",
+                flexShrink: "0"
+            });
+
+            // Item Header
+            const head = document.createElement("div");
+            Object.assign(head.style, { padding: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "rgba(255,255,255,0.1)" });
+
+            const titleDiv = document.createElement("div");
+            const flagSrc = data.wc ? `https://flagcdn.com/h20/${data.wc.toLowerCase()}.png` : "";
+            const flagImg = flagSrc ? `<img src="${flagSrc}" style="width:16px; margin-right:6px; vertical-align:middle;">` : "";
+            titleDiv.innerHTML = `${flagImg}<span style="font-weight:bold; font-family:monospace; color:#00FF00;">${ip}</span>`;
+
+            const actionsDiv = document.createElement("div"); actionsDiv.style.display = "flex"; actionsDiv.style.gap = "5px";
+
+            // Edit Note Button (NEW)
+            const editBtn = document.createElement("button"); editBtn.innerText = "✏️";
+            Object.assign(editBtn.style, { border:"none", background:"transparent", cursor:"pointer", fontSize:"14px" });
+            editBtn.title = "Edit Note";
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                openNoteEditor(ip);
+            };
+
+            // Delete Note Button
+            const delBtn = document.createElement("button"); delBtn.innerText = "🗑️";
+            Object.assign(delBtn.style, { border:"none", background:"transparent", cursor:"pointer", fontSize:"14px" });
+            delBtn.title = "Delete Note";
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                if(confirm("Delete this note?")) {
+                    delete history[ip].note; queueSave(); renderNotesList();
+                    if(currentIP === ip) refreshStatsWindowDisplay(ip, history[ip], currentApiData);
+                }
+            };
+
+            actionsDiv.appendChild(editBtn); // Add Edit Button
+            actionsDiv.appendChild(delBtn);
+            head.appendChild(titleDiv);
+            head.appendChild(actionsDiv);
+
+            // Note Body (Default Expanded)
+            const body = document.createElement("div");
+            Object.assign(body.style, {
+                display: "block",
+                padding: "10px", fontSize: "13px", color: "#ddd", borderTop: "1px solid #333", wordBreak: "break-word", whiteSpace: "pre-wrap"
+            });
+
+            // 1. Thumbnail (If exists)
+            if (data.thumb) {
+                const img = document.createElement("img");
+                img.src = data.thumb;
+                Object.assign(img.style, {
+                    display: "block", maxWidth: "100%", maxHeight: "120px", borderRadius: "4px",
+                    border: "1px solid #444", marginBottom: "8px", cursor: "pointer"
+                });
+                img.onclick = () => {
+                    const w = window.open();
+                    w.document.write(`<body style='margin:0; background:#111; display:flex; justify-content:center; align-items:center; height:100vh;'><img src='${data.thumb}' style='max-width:100%; max-height:100%; box-shadow:0 0 20px #000;'></body>`);
+                };
+                body.appendChild(img);
+            }
+
+            // 2. Note Text
+            const noteTxt = document.createElement("div");
+            noteTxt.innerHTML = safe(data.note);
+            noteTxt.style.marginBottom = "10px";
+            body.appendChild(noteTxt);
+
+            // 3. Action Buttons Row
+            const btnRow = document.createElement("div");
+            btnRow.style.display = "flex"; btnRow.style.gap = "8px";
+
+            // Copy Note
+            const copyBtn = document.createElement("button");
+            copyBtn.innerText = "Copy Note";
+            Object.assign(copyBtn.style, { padding:"4px 8px", background:"#444", border:"none", borderRadius:"3px", color:"#fff", fontSize:"10px", cursor:"pointer" });
+            copyBtn.onclick = (e) => { e.stopPropagation(); navigator.clipboard.writeText(data.note).then(() => showToast("Note Copied")); };
+
+            // Block/Unblock IP Button
+            const blockBtn = document.createElement("button");
+
+            const updateBtnVisuals = () => {
+                const isNowBlocked = blockedIPs.has(ip);
+                blockBtn.innerText = isNowBlocked ? "✅ Unblock" : "🚫 Block IP";
+                Object.assign(blockBtn.style, {
+                    padding:"4px 8px",
+                    background: isNowBlocked ? "#28a745" : "#A00000",
+                    border: isNowBlocked ? "1px solid #20c997" : "1px solid #FF0000",
+                    borderRadius:"3px", color:"#fff", fontSize:"10px", cursor: "pointer", minWidth: "60px"
+                });
+            };
+
+            updateBtnVisuals();
+
+            blockBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (blockedIPs.has(ip)) {
+                    blockedIPs.delete(ip);
+                    showToast(`Unblocked ${ip}`);
+                } else {
+                    blockedIPs.add(ip);
+                    showToast(`Blocked ${ip}`);
+                }
+                queueSave();
+                updateBtnVisuals();
+
+                const settingsWin = document.getElementById("ome-settings-window");
+                if (settingsWin && settingsWin.style.display === "flex" && lastActiveTab === "tab-ips") {
+                    renderBlockedIPs();
+                }
+            };
+
+            btnRow.appendChild(copyBtn);
+            btnRow.appendChild(blockBtn);
+            body.appendChild(btnRow);
+
+            head.onclick = () => {
+                const isOpen = body.style.display === "block";
+                body.style.display = isOpen ? "none" : "block";
+                head.style.background = isOpen ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.15)";
+            };
+
+            item.appendChild(head);
+            item.appendChild(body);
+            container.appendChild(item);
+        });
+    }
+
+    // --- SCREENSHOT HISTORY WINDOW ---
+    function createScreenshotHistoryWindow() {
+        if (document.getElementById("ome-screenshot-history-window")) {
+            const w = document.getElementById("ome-screenshot-history-window");
+            w.style.display = w.style.display === "none" ? "flex" : "none";
+            if(w.style.display === "flex") renderScreenshotHistory();
+            return;
+        }
+
+        const win = document.createElement("div"); win.id = "ome-screenshot-history-window"; win.className = "ome-no-select resizable-win";
+        Object.assign(win.style, {
+            position: "fixed", top: "150px", left: "250px", width: "420px", height: "550px",
+            backgroundColor: "rgba(17, 17, 17, 0.98)", backdropFilter: "blur(10px)", color: "#FFF",
+            zIndex: "100000025",
+            borderRadius: "12px", border: "1px solid #555",
+            display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.8)"
+        });
+
+        const header = document.createElement("div");
+        Object.assign(header.style, { padding: "12px", borderBottom: "1px solid #444", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(34,34,34,0.8)", borderRadius: "12px 12px 0 0" });
+        header.innerHTML = "<span style='font-size:14px; font-weight:bold;'>📸 Saved Screenshots</span>";
+
+        const headerBtns = document.createElement("div"); headerBtns.style.display = "flex"; headerBtns.style.gap = "8px";
+
+        const delAllBtn = document.createElement("button"); delAllBtn.innerText = "🗑️ Del All";
+        Object.assign(delAllBtn.style, { padding: "4px 8px", background: "#DC3545", border: "none", borderRadius: "4px", color: "white", fontSize: "11px", cursor: "pointer" });
+        delAllBtn.onclick = () => {
+            if(!confirm("Delete ALL screenshots? This cannot be undone.")) return;
+            const { history } = loadData();
+            let count = 0;
+            Object.keys(history).forEach(ip => {
+                if(history[ip].thumb) { delete history[ip].thumb; count++; }
+            });
+            queueSave(); renderScreenshotHistory();
+            showToast(`${count} Screenshots Deleted`, win);
+        };
+
+        const closeBtn = document.createElement("button"); closeBtn.innerText = "✖";
+        Object.assign(closeBtn.style, { background: "none", border: "none", color: "#aaa", fontSize: "16px", cursor: "pointer", marginLeft: "10px" });
+        closeBtn.onclick = () => win.style.display = "none";
+
+        headerBtns.appendChild(delAllBtn);
+        headerBtns.appendChild(closeBtn);
+        header.appendChild(headerBtns);
+        win.appendChild(header);
+
+        const content = document.createElement("div"); content.id = "ome-screenshot-list-content";
+        content.className = "ome-scroll-lock";
+        Object.assign(content.style, { padding: "10px", overflowY: "auto", flex: "1", display: "flex", flexDirection: "column", gap: "8px" });
+        win.appendChild(content);
+
+        document.body.appendChild(win);
+        makeDraggable(header, win);
+        makeResizable(win);
+        sandboxWindowEvents(win);
+        renderScreenshotHistory();
+    }
+
+    function renderScreenshotHistory() {
+        const container = document.getElementById("ome-screenshot-list-content");
+        if(!container) return;
+        container.innerHTML = "";
+
+        const { history, blockedIPs } = loadData();
+        const entries = Object.entries(history).filter(([ip, data]) => data.thumb);
+
+        if(entries.length === 0) {
+            container.innerHTML = "<div style='text-align:center; color:#666; padding:20px;'>No screenshots saved yet.<br><br><span style='font-size:11px'>Thumbnails are captured automatically 2.5s after connection.</span></div>";
+            return;
+        }
+
+        entries.sort((a,b) => (b[1].lastSeen || 0) - (a[1].lastSeen || 0));
+
+        entries.forEach(([ip, data]) => {
+            const item = document.createElement("div");
+            Object.assign(item.style, {
+                background: "rgba(255,255,255,0.05)",
+                borderRadius: "6px",
+                border: "1px solid #333",
+                overflow: "hidden",
+                flexShrink: "0"
+            });
+
+            const head = document.createElement("div");
+            Object.assign(head.style, { padding: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.1)" });
+
+            const titleDiv = document.createElement("div");
+            const flagSrc = data.wc ? `https://flagcdn.com/h20/${data.wc.toLowerCase()}.png` : "";
+            const flagImg = flagSrc ? `<img src="${flagSrc}" style="width:16px; margin-right:6px; vertical-align:middle;">` : "";
+            const dateStr = data.lastSeen ? new Date(data.lastSeen).toLocaleDateString() : "";
+            titleDiv.innerHTML = `${flagImg}<span style="font-weight:bold; font-family:monospace; color:#00FFFF;">${ip}</span> <span style="font-size:10px; color:#aaa; margin-left:5px;">(${dateStr})</span>`;
+
+            const actionsDiv = document.createElement("div"); actionsDiv.style.display = "flex"; actionsDiv.style.gap = "5px";
+
+            // Edit Note Button
+            const editBtn = document.createElement("button"); editBtn.innerText = "✏️";
+            Object.assign(editBtn.style, { border:"none", background:"transparent", cursor:"pointer", fontSize:"14px" });
+            editBtn.title = "Add/Edit Note";
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                openNoteEditor(ip);
+            };
+
+            // Delete Screenshot Button
+            const delBtn = document.createElement("button"); delBtn.innerText = "🗑️";
+            Object.assign(delBtn.style, { border:"none", background:"transparent", cursor:"pointer", fontSize:"14px" });
+            delBtn.title = "Delete Screenshot";
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                if(confirm("Delete this screenshot?")) {
+                    delete history[ip].thumb; queueSave(); renderScreenshotHistory();
+                    if(currentIP === ip) refreshStatsWindowDisplay(ip, history[ip], currentApiData);
+                }
+            };
+
+            actionsDiv.appendChild(editBtn);
+            actionsDiv.appendChild(delBtn);
+            head.appendChild(titleDiv);
+            head.appendChild(actionsDiv);
+
+            const body = document.createElement("div");
+            Object.assign(body.style, { padding: "8px", background: "#000", textAlign: "center", borderTop: "1px solid #333", display: "flex", flexDirection: "column", gap: "8px" });
+
+            // Image
+            const img = document.createElement("img");
+            img.src = data.thumb;
+            Object.assign(img.style, { maxWidth: "100%", maxHeight: "200px", borderRadius: "4px", border: "1px solid #444", cursor: "pointer", alignSelf: "center" });
+            img.onclick = () => {
+                const w = window.open();
+                w.document.write(`<body style='margin:0; background:#111; display:flex; justify-content:center; align-items:center; height:100vh;'><img src='${data.thumb}' style='max-width:100%; max-height:100%; box-shadow:0 0 20px #000;'></body>`);
+                w.document.close();
+            };
+            body.appendChild(img);
+
+            // Show Note if exists
+            if (data.note) {
+                const noteDiv = document.createElement("div");
+                noteDiv.innerHTML = `<span style="color:#FFD700; font-weight:bold;">Note:</span> ${safe(data.note)}`;
+                Object.assign(noteDiv.style, { fontSize: "12px", color: "#ddd", textAlign: "left", padding: "5px", background: "rgba(255,255,255,0.1)", borderRadius: "4px" });
+                body.appendChild(noteDiv);
+            }
+
+            // Block/Unblock Button
+            const blockBtn = document.createElement("button");
+            const updateBtnVisuals = () => {
+                const isNowBlocked = blockedIPs.has(ip);
+                blockBtn.innerText = isNowBlocked ? "✅ Unblock IP" : "🚫 Block IP";
+                Object.assign(blockBtn.style, {
+                    padding:"6px 12px",
+                    width: "100%",
+                    background: isNowBlocked ? "#28a745" : "#A00000",
+                    border: isNowBlocked ? "1px solid #20c997" : "1px solid #FF0000",
+                    borderRadius:"3px", color:"#fff", fontSize:"12px", cursor: "pointer", fontWeight: "bold"
+                });
+            };
+            updateBtnVisuals();
+            blockBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (blockedIPs.has(ip)) {
+                    blockedIPs.delete(ip);
+                    showToast(`Unblocked ${ip}`);
+                } else {
+                    blockedIPs.add(ip);
+                    showToast(`Blocked ${ip}`);
+                }
+                queueSave();
+                updateBtnVisuals();
+            };
+            body.appendChild(blockBtn);
+
+            item.appendChild(head);
+            item.appendChild(body);
+            container.appendChild(item);
+        });
+    }
+
 
     // --- NOTE WINDOW ---
 
@@ -2357,7 +4448,8 @@
         const win = document.createElement("div"); win.id = "note-input-window"; win.className = "ome-no-select resizable-win";
         Object.assign(win.style, {
             position: "fixed", top: "400px", left: "10px", width: "300px", backgroundColor: "rgba(60, 60, 0, 0.85)", backdropFilter: "blur(10px)", color: "#FFFFFF",
-            zIndex: "99999995",
+            // [FIX] Increased Z-Index to sit above the Notes List Window
+            zIndex: "100000030",
             borderRadius: "10px", border: "2px solid rgba(255, 215, 0, 0.5)", display: "none", flexDirection: "column", padding: "10px"
         });
 
@@ -2494,9 +4586,21 @@
         const newText = textarea.value.trim();
         const { history } = loadData();
         if (!history[editingIP]) history[editingIP] = { count: 1, lastSeen: Date.now() };
-        if (newText === "") delete history[editingIP].note; else history[editingIP].note = newText;
+
+        if (newText === "") delete history[editingIP].note;
+        else history[editingIP].note = newText;
+
         queueSave();
+
+        // Update Main Stats Window if we are currently connected to this IP
         if (currentIP === editingIP) refreshStatsWindowDisplay(currentIP, history[currentIP], currentApiData);
+
+        // [FIX] Update the Saved Notes List Window if it is open
+        const notesWin = document.getElementById("ome-notes-list-window");
+        if (notesWin && notesWin.style.display === "flex") {
+            renderNotesList();
+        }
+
         closeNoteEditor();
     }
 
@@ -2521,10 +4625,17 @@
 
         const count = userData ? userData.count : 1;
         const noteText = userData ? userData.note : "";
+
+        // Logic for Note
         const noteHtml = noteText ? `<div class="ome-yellow-note" style="margin: 6px 0; padding: 5px; background: rgba(255,255,0,0.3); border-left: 3px solid yellow; color: #fff; font-size: 13px; text-shadow: none !important; width: fit-content; max-width: 100%; word-wrap: break-word;">${safe(noteText)}</div>` : "";
+
+        // [CHANGED] Logic for Thumbnail - Added ID, removed inline onclick
+        const thumbUrl = userData ? userData.thumb : null;
+        const thumbHtml = thumbUrl ? `<img src="${thumbUrl}" id="ome-main-thumb" style="display:block; margin: 10px 0 5px 0; border:1px solid #555; border-radius:4px; width:120px; height:auto; cursor:pointer;" title="Click to Open Saved Screenshots" alt="User Thumbnail">` : "";
+
         const copyBtnStyle = isWindowTransparent ? "border-radius: 4px; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: rgba(255,255,255,0.8); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 11px; padding: 2px 6px; font-weight: bold;" : "border-radius: 4px; border: 1px solid #777; background: #000; color: #eee; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 11px; padding: 2px 6px; font-weight: bold;";
         const copyBtn = `<div class="ome-no-select ip-copy-btn" style="${copyBtnStyle}" title="Copy IP" onclick="window.navigator.clipboard.writeText('${ip}').then(() => { const win=document.getElementById('ip-log-window'); if(!win)return; let t=win.querySelector('.ome-toast'); if(!t){t=document.createElement('div'); t.className='ome-toast ome-no-select'; win.appendChild(t);} t.innerText='Copied IP to clipboard!'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1500); })">Copy</div>`;
-        const ipWrapperStyle = "display: inline-flex; align-items: center; gap: 8px; border: 1px solid #666; padding: 3px 6px; border-radius: 4px; background-color: rgba(0,0,0,0.4); max-width: 100%; box-sizing: border-box; flex-wrap: wrap; width: fit-content;";
+        const ipWrapperStyle = "display: inline-flex; align-items: center; gap: 8px; border: 1px solid #666; padding: 3px 6px; border-radius: 4px; background-color: rgba(0,0,0,0.4); max-width: 100%; box-sizing: border-box; flex-wrap: wrap; width: fit-content; margin-top: 5px;";
         const blurStyle = "filter: blur(3px); cursor: pointer; transition: 0.2s; user-select: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; display: inline-block; vertical-align: middle;";
         const toggleScript = "this.style.filter = this.style.filter === 'none' ? 'blur(3px)' : 'none'";
         const fontStyle = "font-family: system-ui, sans-serif; line-height: 1.3;";
@@ -2541,24 +4652,28 @@
                     <div style="font-size: 13px; font-weight: bold; color: #FF0000; margin-bottom: 5px;">Reason: TURN Server / Proxy</div>
                     <div style="font-size: 14px; font-weight:bold; color: #FF7777; margin-bottom: 2px;">${safe(loc)}</div>
                     <div style="font-size: 12px; color: #FF7777; margin-bottom: 5px;">${safe(isp)}</div>
+
                     ${noteHtml}
-                    <div style="font-size: 18px; color: #FF9536; font-weight: 600; margin-bottom: 5px;">
-                        Seen ${count} ${count===1?"time":"times"} <span style="color:#aaa">  •  <span id='ip-call-timer'>${formatTime(callSeconds)}</span></span>
+
+                    <div style="font-size: 18px; color: #aaa; margin-bottom: 5px;">
+                        Seen ${count} ${count===1?"time":"times"} <span style="color:#888">  •  <span id='ip-call-timer'>${formatTime(callSeconds)}</span></span>
                     </div>
+
                     <div style="${ipWrapperStyle}">
                          <span title="Click to reveal" onclick="${toggleScript}" style="color:#FF9536; font-size: 16px; ${blurStyle}">${safe(ip)}</span> ${copyBtn}
                     </div>
+
+                    ${thumbHtml}
                 </div>`;
         } else if (apiData) {
             const countryCode = apiData.country_code ? apiData.country_code.toLowerCase() : "un";
             const lang = LANG_MAP[countryCode] || "Unknown";
 
-            // UPDATED HEADER LAYOUT: Lang on top, Flag + Country below
             const headerRow = `
                 <div style="margin-bottom: 5px;">
                     <div style="font-size: 10px; color: #bbb; font-weight: bold; margin-bottom: 2px; opacity: 0.8; text-transform: uppercase;">${lang}</div>
                     <div style="display: flex; align-items: center;">
-                        <img src="https://flagcdn.com/h24/${countryCode}.png" draggable="false" style="height: 16px; width: auto; margin-right: 8px;" alt="">
+                        <img src="https://flagcdn.com/h24/${countryCode}.png" draggable="false" style="height: 16px; width: auto; margin-right: 8px; filter: drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000);" alt="">
                         <span style="font-size: 16px; font-weight: 600; color: #fff;">${safe(apiData.country || "Unknown")}</span>
                     </div>
                 </div>
@@ -2572,54 +4687,112 @@
                     <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">
                         ${safe(apiData.connection ? apiData.connection.isp : "")}
                     </div>
+
                     ${noteHtml}
-                    <div style="font-size: 18px; color: #FF9536; font-weight: 600; margin-bottom: 5px;">
-                        Seen ${count} ${count===1?"time":"times"} <span style="color:#aaa">  •  <span id='ip-call-timer'>${formatTime(callSeconds)}</span></span>
+
+                    <div style="font-size: 18px; color: #aaa; margin-bottom: 5px;">
+                        Seen ${count} ${count===1?"time":"times"} <span style="color:#888">  •  <span id='ip-call-timer'>${formatTime(callSeconds)}</span></span>
                     </div>
+
                      <div style="${ipWrapperStyle}">
                          <span title="Click to reveal" onclick="${toggleScript}" style="color:#FF9536; font-size: 16px; ${blurStyle}">${safe(ip)}</span> ${copyBtn}
                     </div>
+
+                    ${thumbHtml}
                 </div>`;
         } else {
             html = `<div style="${fontStyle}" class="${outlineClass}"> <div style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px;">⏳ Fetching...</div> <div style="margin-top: 4px;"> <span title="Click to reveal" onclick="${toggleScript}" style="color:#FF9536; font-size: 18px; ${blurStyle}">${ip||""}</span> </div> </div>`;
         }
         contentArea.innerHTML = html;
+
+        // [NEW] Attach Event Listener to the Thumbnail after HTML injection
+        const thumbEl = document.getElementById("ome-main-thumb");
+        if (thumbEl) {
+            thumbEl.onclick = (e) => {
+                e.stopPropagation();
+                createScreenshotHistoryWindow();
+            };
+        }
     }
 
-    // --- WEBRTC (Stealth Mode) ---
-    const nativeRTCPeerConnection = window.RTCPeerConnection;
+    // --- WEBRTC (Stealth Mode + Active IP Detection) ---
+    const NativeRTCPeerConnection = window.RTCPeerConnection;
 
-    // 1. Create the hook wrapper
     const HookedRTCPeerConnection = function(...args) {
-        currentIP = null;
-        isRelayIP = false;
-        currentRelayType = "";
-        currentApiData = null;
+        // Force Relay Logic
+        if (FAKE_CONFIG.forceRelay) {
+            if (!args.length) args[0] = {};
+            args[0].iceTransportPolicy = 'relay';
+        }
 
-        const pc = new nativeRTCPeerConnection(...args);
+        const pc = new NativeRTCPeerConnection(...args);
+
+        pc.addEventListener('connectionstatechange', async () => {
+            if (pc.connectionState === 'connected') {
+                try {
+                    // Poll for stats multiple times (uHelper Logic)
+                    // This fixes cases where the IP isn't ready immediately upon connection
+                    let attempts = 0;
+                    const maxAttempts = 10;
+
+                    const checkStats = async () => {
+                        const stats = await pc.getStats();
+                        let found = false;
+
+                        for (const stat of stats.values()) {
+                            if (stat.type === 'candidate-pair' && stat.state === 'succeeded' && stat.remoteCandidateId) {
+                                const remoteCandidate = stats.get(stat.remoteCandidateId);
+                                if (remoteCandidate && remoteCandidate.ip) {
+                                    console.log(`[Ome-IP] Active Connection (Attempt ${attempts+1}): ${remoteCandidate.ip}`);
+
+                                    // Logic: Keep Direct IP if we have it, don't overwrite with Relay
+                                    if (currentRelayType === "Direct" && remoteCandidate.candidateType === 'relay') {
+                                        return;
+                                    }
+
+                                    currentIP = remoteCandidate.ip;
+                                    isRelayIP = (remoteCandidate.candidateType === 'relay');
+                                    currentRelayType = isRelayIP ? "Relay" : "Direct";
+                                    getLocation(currentIP);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!found && attempts < maxAttempts) {
+                            attempts++;
+                            setTimeout(checkStats, 200); // Retry every 200ms
+                        }
+                    };
+                    checkStats();
+
+                } catch (e) { console.error("[Ome-IP] getStats failed", e); }
+            }
+        });
+
         return pc;
     };
 
-    // 2. Preserve prototype chain
-    HookedRTCPeerConnection.prototype = nativeRTCPeerConnection.prototype;
-
-    // 3. Mask the constructor to look native (Fixes Detection Leak)
+    HookedRTCPeerConnection.prototype = NativeRTCPeerConnection.prototype;
     Object.defineProperty(HookedRTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
-    Object.defineProperty(HookedRTCPeerConnection, 'toString', {
-        value: function() { return nativeRTCPeerConnection.toString(); },
-        writable: true,
-        configurable: true
-    });
-
-    // 4. Overwrite global
+    Object.defineProperty(HookedRTCPeerConnection, 'toString', { value: function() { return NativeRTCPeerConnection.toString(); }, writable: true, configurable: true });
     window.RTCPeerConnection = HookedRTCPeerConnection;
-
-    // --- Hook setRemoteDescription to spy on partner capabilities ---
 
     // --- Hook addIceCandidate with Native Masking ---
     const nativeAddIceCandidate = window.RTCPeerConnection.prototype.addIceCandidate;
 
     const hookedAddIceCandidate = function(iceCandidate, ...args) {
+        // [NEW] STRICT UDP ENFORCEMENT (Controlled by UDP ONLY button)
+        // If strict mode is on, we aggressively block any candidate that isn't a Relay.
+        // This ensures the connection fails if a direct P2P connection is attempted.
+        if (FAKE_CONFIG.udpStrict && iceCandidate && iceCandidate.candidate) {
+            // Check if the candidate string contains 'typ relay'
+            if (!iceCandidate.candidate.includes("typ relay")) {
+                return; // Drop it silently (Block P2P)
+            }
+        }
+
         // 1. Check if IP Grabbing is globally enabled
         if (!isIPGrabbingEnabled) {
             if (typeof nativeAddIceCandidate !== 'undefined') {
@@ -2633,7 +4806,7 @@
                 const rawCandidate = iceCandidate.candidate;
                 const parts = rawCandidate.split(' ');
 
-                // [FIX 1] Robust Relay Parsing: Find 'typ' keyword dynamically
+                // Robust Relay Parsing: Find 'typ' keyword dynamically
                 let typeField = "host"; // Default
                 const typeIndex = parts.indexOf("typ");
                 if (typeIndex !== -1 && parts.length > typeIndex + 1) {
@@ -2644,31 +4817,21 @@
                     typeField = parts[7];
                 }
 
-                // Debug Log to Confirm Logic is Working
-                if (typeField === 'relay') {
-                    logDev("RTC", `⚠️ Relay Candidate Detected! (${typeField})`);
-                }
-
                 // Regex Definitions
                 const ipv4Regex = /([0-9]{1,3}(\.[0-9]{1,3}){3})/;
-                // (Simple IPv6 regex)
                 const ipv6Regex = /([a-f0-9]{1,4}(:[a-f0-9]{1,4}){7}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){0,7}::[a-f0-9]{0,4})/;
-
-                // [FIX 2] Updated Private IP Regex to include 192.0.0. (DS-Lite)
                 const privateIpRegex = /^(10\.|192\.168\.|192\.0\.0\.|172\.(1[6-9]|2\d|3[0-1])\.|127\.|100\.)/;
 
                 let incomingIP = null;
                 let isIncomingV6 = false;
 
-                // Robust IP Extraction: Loop through parts to find valid IP
+                // Robust IP Extraction
                 for (let part of parts) {
-                    // Check for IPv4 (excluding ports like 1.2.3.4:80)
                     if (ipv4Regex.test(part) && !part.includes(":")) {
                         incomingIP = part;
                         isIncomingV6 = false;
                         break;
                     }
-                    // Check for IPv6
                     else if (ipv6Regex.test(part)) {
                         incomingIP = part;
                         isIncomingV6 = true;
@@ -2678,18 +4841,16 @@
 
                 // Check for Stripped (.local)
                 if (!incomingIP && rawCandidate.includes(".local")) {
-                    logDev("RTC", `Stripped/mDNS candidate ignored`);
+                    // Stripped/mDNS candidate ignored
                 }
 
                 // --- PREFERENCE LOGIC ---
                 if (incomingIP && !privateIpRegex.test(incomingIP)) {
 
-                    // Helper to detect if our CURRENT stored IP is IPv4
                     const currentIsV4 = currentIP && ipv4Regex.test(currentIP);
 
                     // RULE 1: If we already have an IPv4, ignore any incoming IPv6
                     if (currentIsV4 && isIncomingV6) {
-                        // We return here to let the connection continue, but we DON'T update the display/stats
                         if (typeof nativeAddIceCandidate !== 'undefined') {
                             return nativeAddIceCandidate.apply(this, [iceCandidate, ...args]);
                         }
@@ -2697,21 +4858,14 @@
                     }
 
                     // RULE 2: If we are upgrading from IPv6 to IPv4, or it's a new IP
-                    const isUpgrade = (!currentIsV4 && !isIncomingV6); // Had V6 (or null), found V4
+                    const isUpgrade = (!currentIsV4 && !isIncomingV6);
                     const isNew = (currentIP !== incomingIP);
 
                     if (isUpgrade || isNew) {
-                        // Filter strict Direct/Relay preference
                         const isRelay = (typeField === "relay");
                         const isSrflx = (typeField === "srflx");
                         const isHost = (typeField === "host");
-                        // We treat 'srflx' (Server Reflexive) and 'host' (Direct) as "Direct" connections
                         const isDirect = isSrflx || (isHost && !isRelay);
-
-                        // We generally take the IP if:
-                        // 1. It is Direct
-                        // 2. OR it is Relay, but we don't have ANY IP yet
-                        // 3. OR it is Relay, but we are upgrading from V6 to V4 (even if V4 is relay)
 
                         let shouldUpdate = false;
 
@@ -2732,7 +4886,7 @@
                     }
                 }
             } catch (e) {
-                logDev("ERR", "RTC Parse Error: " + e.message);
+                // Keep silent on errors to prevent console spam
             }
         }
 
@@ -2761,21 +4915,32 @@
         logDev("IP", `Target Found: ${ip}`);
 
         let { history } = loadData();
-
-        // Safety check: ensure history exists
         if (!history) history = {};
 
         let count = (history[ip]) ? history[ip].count + 1 : 1;
-
         history[ip] = {
             count: count,
             lastSeen: Date.now(),
             note: (history[ip] && history[ip].note) ? history[ip].note : "",
-            wc: (history[ip] && history[ip].wc) ? history[ip].wc : null
+            wc: (history[ip] && history[ip].wc) ? history[ip].wc : null,
+            thumb: (history[ip] && history[ip].thumb) ? history[ip].thumb : null
         };
         queueSave();
         refreshStatsWindowDisplay(ip, history[ip]);
-        checkAndSkipIfBlocked(ip, null);
+        checkAndSkipIfBlocked(ip, null); // Check IP block immediately
+
+        // Thumbnail Trigger
+        if (isThumbnailCaptureEnabled) {
+            setTimeout(() => {
+                if (currentIP !== ip) return;
+                const thumbData = captureVideoThumbnail();
+                if (thumbData) {
+                    history[ip].thumb = thumbData;
+                    queueSave();
+                    refreshStatsWindowDisplay(ip, history[ip], currentApiData);
+                }
+            }, 2500);
+        }
 
         callTimerInterval = setInterval(() => {
             callSeconds++;
@@ -2784,143 +4949,136 @@
             updateVolume(globalVolume);
         }, 1000);
 
-        // --- SWITCHED TO IP-API.COM (No Monthly Limit) ---
-        GM_xmlhttpRequest({
-            method: "GET",
-            // We specifically use HTTP here because the free tier of ip-api doesn't support HTTPS.
-            // GM_xmlhttpRequest allows this cross-origin/mixed-content request safely.
-            url: `http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,region,regionName,city,lat,lon,isp,query`,
-            onload: function(response) {
-                if (currentIP !== ip) return;
+        // --- HYBRID FETCHER: "Do Both" Logic ---
+        const apiUrl = `https://ipwho.is/${ip}`;
 
-                try {
-                    var json = JSON.parse(response.responseText);
+        // 1. Define Success Handler (Used by both methods)
+        const handleSuccess = (json) => {
+            if (currentIP !== ip) return; // Too late
+            if (json.success) {
+                const normalizedData = {
+                    success: true,
+                    ip: json.ip,
+                    country_code: json.country_code,
+                    country: json.country,
+                    region: json.region,
+                    city: json.city,
+                    latitude: json.latitude,
+                    longitude: json.longitude,
+                    connection: { isp: json.connection ? json.connection.isp : "Unknown" }
+                };
+                currentApiData = normalizedData;
+                if (history[ip]) { history[ip].wc = normalizedData.country_code; queueSave(); }
+                refreshStatsWindowDisplay(ip, history[ip], normalizedData);
+                checkAndSkipIfBlocked(ip, normalizedData.country_code);
+                logDev("API", `Details: ${normalizedData.city}, ${normalizedData.region}`);
+                
+                const mapWin = document.getElementById("ome-map-window");
+                if (mapWin && mapWin.style.display === "flex" && !isStreetViewActive) {
+                    updateMapContent(mapWin, currentApiData);
+                }
+            } else {
+                logDev("API", `Failed: ${json.message}`);
+            }
+        };
 
-                    // Check success (ip-api uses 'status': 'success')
-                    if (json.status === 'success') {
-
-                        // 1. Normalize Data (Convert ip-api format to match your existing script)
-                        // This prevents the Map and UI from breaking
-                        const normalizedData = {
-                            success: true,
-                            ip: json.query,
-                            country_code: json.countryCode,
-                            country: json.country,
-                            region: json.regionName, // ip-api uses 'regionName'
-                            city: json.city,
-                            latitude: json.lat,      // ip-api uses 'lat'
-                            longitude: json.lon,     // ip-api uses 'lon'
-                            connection: {
-                                isp: json.isp        // ip-api uses 'isp' directly
-                            }
-                        };
-
-                        currentApiData = normalizedData;
-
-                        // 2. Update History & UI
-                        if (history[ip]) {
-                            history[ip].wc = normalizedData.country_code;
-                            queueSave();
-                        }
-                        refreshStatsWindowDisplay(ip, history[ip], normalizedData);
-                        checkAndSkipIfBlocked(ip, normalizedData.country_code);
-
-                        logDev("API", `Details: ${normalizedData.city}, ${normalizedData.region} (${normalizedData.connection.isp})`);
-
-                        // 3. Update Map if open
-                        const mapWin = document.getElementById("ome-map-window");
-                        if(mapWin && mapWin.style.display === "flex" && !isStreetViewActive) {
-                            updateMapContent(mapWin, currentApiData);
-                        }
+        // 2. Try Standard Fetch First (Stealthier)
+        fetch(apiUrl)
+            .then(res => res.json())
+            .then(handleSuccess)
+            .catch(() => {
+                // 3. If Blocked/Failed, switch to "Do it anyway" mode (GM_xmlhttpRequest)
+                logDev("API", "Standard fetch blocked. Switching to Bypass Mode...");
+                GM_xmlhttpRequest({
+                    method: "GET",
+                    url: apiUrl,
+                    onload: function(response) {
+                        try {
+                            handleSuccess(JSON.parse(response.responseText));
+                        } catch(e) { logDev("API", "Bypass Parse Error"); }
+                    },
+                    onerror: function() {
+                        logDev("API", "Net Error (Both Methods Failed)");
                     }
-                    else {
-                        logDev("API", `Failed: ${json.message}`);
-                    }
-                } catch (e) { logDev("ERR", "JSON Parse Error"); }
-            },
-            onerror: function() { logDev("API", "Net Error"); }
-        });
+                });
+            });
     }
 
-    // --- ADVANCED BYPASS & SECURITY (STEALTH MODE) ---
+    // --- ADVANCED INJECTION (Fixes Sandbox Logic Failure) ---
     function installPlatformBypasses() {
+        // We create a config object to pass your settings into the real page
+        const injectionConfig = {
+            face: isFaceProtectionEnabled,
+            report: isReportProtectionEnabled,
+            antibot: isAntiBotEnabled,
+            fingerprint: isFingerprintSpoofingEnabled,
+            // Pass the random persona data for consistency
+            hardwareConcurrency: globalPersona.hardwareConcurrency,
+            deviceMemory: globalPersona.deviceMemory,
+            userAgent: globalPersona.userAgent,
+            platform: globalPersona.platform
+        };
+
         const script = document.createElement('script');
-        script.textContent = `(function() {
-            // Configuration Flags
-            let config = { face: true, report: true };
+        script.textContent = `(function(config) {
+            console.log("[Ome-IP] Injecting Protections into Main World...");
 
-            window.addEventListener('ome-bypass-config', (e) => {
-                if (e.detail.type === 'face') config.face = e.detail.enabled;
-                if (e.detail.type === 'report') config.report = e.detail.enabled;
-            });
+            // 1. GLOBAL VARIABLES (Anti-Bot Bypasses)
+            // The site checks these specific variables to see if you are human.
+            if (config.antibot) {
+                // Force specific values to prevent variance checks from flagging you
+                window.calculateVariance = function() { return 1200 + (Math.random() * 200); };
+                window.calculateScrollLength = function() { return 2000 + Math.floor(Math.random() * 10000); };
+                window.testGIF = async function() { return 100; };
+                window.bypass = true;
 
-            function notifyExtension(type) {
-                window.dispatchEvent(new CustomEvent('ome-bypass-event', { detail: { type: type } }));
+                // Prevent site from setting "blocked" flags
+                Object.defineProperty(window, 'blocked', {
+                    get: () => false,
+                    set: (v) => { console.log("[Ome-IP] 🛡️ Blocked attempt to set 'window.blocked'"); }
+                });
             }
 
-            // --- 1. STEALTH WORKER HOOK (Face Detection) ---
-            const NativeWorker = window.Worker;
+            // 2. NAVIGATOR SPOOFING (Fingerprint Bypasses)
+            // We use Object.defineProperty because 'navigator' is often read-only
+            if (config.fingerprint) {
+                const spoofProp = (prop, value) => {
+                    try {
+                        Object.defineProperty(navigator, prop, {
+                            get: () => value,
+                            configurable: true
+                        });
+                    } catch(e) { console.log("Failed to spoof " + prop); }
+                };
 
+                spoofProp('webdriver', false); // CRITICAL: Hides automation status
+                spoofProp('hardwareConcurrency', config.hardwareConcurrency);
+                spoofProp('deviceMemory', config.deviceMemory);
+                spoofProp('platform', config.platform);
+                spoofProp('userAgent', config.userAgent);
+            }
+
+            // 3. WORKER HOOK (Face Protection)
+            const NativeWorker = window.Worker;
             class StealthWorker extends NativeWorker {
                 constructor(scriptURL, options) {
                     const urlStr = String(scriptURL);
-                    // Check if this worker is for face detection/vision
                     if (config.face && (urlStr.includes('vision') || urlStr.includes('face') || urlStr.includes('wasm'))) {
-                        notifyExtension('face');
-                        // Create a dummy worker that does nothing but confirm it "loaded"
+                        window.dispatchEvent(new CustomEvent('ome-bypass-event', { detail: { type: 'face' } }));
+                        console.log("[Ome-IP] 🎭 Blocked Face Detection Worker:", urlStr);
+
+                        // Create a dummy worker to keep the site happy
                         const dummyCode = "self.onmessage = function(e) { setTimeout(() => { self.postMessage({ action: 'faceDetections', faces: 1 }); }, 50); };";
                         const blob = new Blob([dummyCode], { type: 'application/javascript' });
                         super(URL.createObjectURL(blob), options);
                     } else {
-                        // Pass through legitimate workers (like chat/connection)
                         super(scriptURL, options);
                     }
                 }
             }
-
-            // Mask the class to look like the native function
-            Object.defineProperty(StealthWorker, 'name', { value: 'Worker' });
-            Object.defineProperty(StealthWorker, 'toString', {
-                value: function() { return NativeWorker.toString(); },
-                writable: true, configurable: true
-            });
-
             window.Worker = StealthWorker;
 
-            // --- 2. STEALTH WEBSOCKET HOOK (Report Protection) ---
-            const NativeWebSocket = window.WebSocket;
-
-            class StealthWebSocket extends NativeWebSocket {
-                constructor(...args) {
-                    super(...args);
-
-                    // Attach listener immediately after creation
-                    this.addEventListener('message', (event) => {
-                        if (!config.report) return;
-                        try {
-                            // Check for ban/report packets
-                            if (typeof event.data === 'string' && (event.data.includes('rimage') || event.data.includes('banned'))) {
-                                notifyExtension('report');
-                                // We cannot easily "block" the event here without a Proxy,
-                                // but we CAN trigger the skip logic immediately.
-                                console.log("⚠️ Blocked Report Signal");
-                            }
-                        } catch (e) { }
-                    });
-                }
-            }
-
-            // Mask the class to look like the native function
-            Object.defineProperty(StealthWebSocket, 'name', { value: 'WebSocket' });
-            Object.defineProperty(StealthWebSocket, 'toString', {
-                value: function() { return NativeWebSocket.toString(); },
-                writable: true, configurable: true
-            });
-
-            window.WebSocket = StealthWebSocket;
-            notifyExtension('ws-ready');
-
-        })();`;
+        })(${JSON.stringify(injectionConfig)});`;
 
         (document.head || document.documentElement).appendChild(script);
         script.remove();
@@ -2940,26 +5098,157 @@
         }
     });
 
-    installPlatformBypasses();
+	// --- 3. ANTI-BOT & FINGERPRINT BYPASSES ---
+    function initializeAntiBotBypasses() {
+        // [NEW] Task 1: Check toggle before running
+        if (!isAntiBotEnabled) {
+            console.log("[Ome-IP] Anti-Bot Bypass Disabled via Settings");
+            return;
+        }
 
-    // --- PERSISTENCE OBSERVER ---
-    function startStyleObserver() {
-        let timeout;
-        const observer = new MutationObserver(() => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => {
-                // Enforce Dark Mode class ONLY if active
-                if (isDarkModeActive) {
-                    if (!document.body.classList.contains('ome-dark-mode')) {
+        try {
+            // 1. Variance Bypass
+            let noiseSeed = Math.random();
+            const getNoise = () => {
+                let x = Math.sin(noiseSeed) * 10000;
+                noiseSeed += 0.1;
+                return x - Math.floor(x);
+            };
+            const calcVariance = () => 1000 + (getNoise() * 500);
+
+            // 2. Pre-Connection Bypasses
+            Object.defineProperty(window, 'calculateVariance', { value: calcVariance, writable: false });
+            Object.defineProperty(window, 'calculateScrollLength', { value: () => Math.floor(Math.random() * (40000 - 15000 + 1)) + 15000, writable: false });
+            Object.defineProperty(window, 'setGIFSelector', { value: async () => crypto.randomUUID().replace(/-/g, ''), writable: false });
+            Object.defineProperty(window, 'testGIF', { value: async () => Math.random() * (150 - 50) + 50, writable: false });
+            Object.defineProperty(window, 'bypass', { value: true, writable: false });
+
+            console.log("[Ome-IP] Anti-Bot Variance & GIF Tests Bypassed");
+        } catch (e) {
+            console.log("[Ome-IP] Anti-Bot Init Failed (Already declared?)", e);
+        }
+    }
+
+    // --- OBSERVER ---
+    function initMasterObserver() {
+        // 1. Body Observer: Only watches the body tag for 'ome-dark-mode' class changes.
+        // subtree: false prevents checking every single element's attributes (Massive Perf Gain)
+        const bodyObserver = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                if (m.type === 'attributes' && m.attributeName === 'class') {
+                    const hasClass = document.body.classList.contains('ome-dark-mode');
+                    // Prevent fighting: If we think it should be dark, but it isn't, re-apply.
+                    if (isDarkModeActive && !hasClass) {
                         document.body.classList.add('ome-dark-mode');
                     }
                 }
-                // Enforce Hides ALWAYS
-                applyCustomHides();
-            }, 100);
+            }
         });
-        observer.observe(document.body, { childList: true, subtree: true });
+        bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: false });
+
+        // 2. DOM Observer: Watches for new elements (Disconnects) but IGNORES attributes.
+        // This allows applyCustomHides() to change classes without triggering this observer again.
+        const domObserver = new MutationObserver((mutations) => {
+            let shouldApplyHides = false;
+
+            for (const m of mutations) {
+                if (m.type === 'childList' && m.addedNodes.length > 0) {
+                    shouldApplyHides = true;
+
+                    // Check for OmegleApp disconnects
+                    if (window.location.hostname.includes("omegleapp.me")) {
+                         m.addedNodes.forEach(node => {
+                            if (node.nodeType === 1) {
+                                if (checkOANode(node)) triggerOASkip();
+                                else if (node.querySelector && node.querySelector('.socialLink')) {
+                                    if (checkOANode(node.querySelector('.socialLink'))) triggerOASkip();
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Debounce the hide application to prevent spamming
+            if (shouldApplyHides) {
+                if (window._hideTimeout) clearTimeout(window._hideTimeout);
+                window._hideTimeout = setTimeout(applyCustomHides, 200);
+            }
+        });
+
+        // Observe structure only (childList), NOT attributes
+        domObserver.observe(document.body, { childList: true, subtree: true });
+
+        logDev("SYS", "Master Observer Started (Optimized)");
     }
+
+
+
+    // --- OMEGLEWEB.COM SPECIFIC DISCONNECT MONITOR ---
+    let owDisconnectSkipLock = false;
+
+    function initOmegleWebMonitor() {
+        // Run only on omegleweb domains
+        const host = window.location.hostname;
+        if (!host.includes("omegleweb.com")) return;
+
+        logDev("SYS", "OmegleWeb Disconnect Monitor Started");
+
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.addedNodes.length) {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === 1) { // Element node
+                            if (checkOWNode(node)) triggerOWSkip();
+                        }
+                    });
+                }
+            }
+        });
+
+        const chatBox = document.querySelector('.chat') || document.body;
+        observer.observe(chatBox, { childList: true, subtree: true });
+    }
+
+    function checkOWNode(node) {
+        // Target: <div class="message message-disconnect"><span class="strange">Stranger has disconnected...</span></div>
+
+        // Check if the node itself is the message div
+        if (node.classList.contains('message') && node.classList.contains('message-disconnect')) {
+            // It is a disconnect message, now check if it's the "Stranger"
+            const span = node.querySelector('.strange');
+            if (span && span.textContent.includes('Stranger has disconnected')) {
+                return true;
+            }
+            // Fallback: Check text content directly if span is missing
+            if (node.textContent.includes('Stranger has disconnected')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function triggerOWSkip() {
+        // [NEW] Exit if IP Grabber is OFF
+        if (!isIPGrabbingEnabled) return;
+
+        if (owDisconnectSkipLock) return;
+        owDisconnectSkipLock = true;
+
+        // Human-like delay (800ms - 1.2s)
+        const delayMs = 800 + (Math.floor(Math.random() * 400));
+
+        const stats = document.getElementById("ip-stats-area");
+        if(stats) stats.insertAdjacentHTML('beforeend', `<br><span style="color:cyan; font-size:10px;">↪ OmegleWeb Skip in ${(delayMs/1000).toFixed(2)}s...</span>`);
+
+        setTimeout(() => {
+            performSmartSkip("OmegleWeb Disconnect");
+            // Unlock after 2s
+            setTimeout(() => { owDisconnectSkipLock = false; }, 2000);
+        }, delayMs);
+    }
+
+
     // --- OMEGLEAPP.ME SPECIFIC DISCONNECT MONITOR ---
     let oaDisconnectSkipLock = false;
 
@@ -3004,6 +5293,9 @@
     }
 
     function triggerOASkip() {
+        // [NEW] Exit if IP Grabber is OFF
+        if (!isIPGrabbingEnabled) return;
+
         if (oaDisconnectSkipLock) return;
         oaDisconnectSkipLock = true;
 
@@ -3020,55 +5312,108 @@
         }, delayMs);
     }
 
-    // [FIND THE init CONSTANT AT THE BOTTOM]
-    const init = () => {
-        // 1. Load standard extension data
-        loadData();
-        fetchOwnIP();
-        createLogWindow();
-        createNoteWindow();
 
-        // Inject essential CSS
-        const style = document.createElement('style');
-        style.type = 'text/css';
-        style.innerHTML = `.chat-container { background-color: transparent !important; }`;
-        document.head.appendChild(style);
+    // --- SPLIT INITIALIZATION (Stealth vs UI) ---
 
-        window.addEventListener("beforeunload", forceSave);
+    // 1. IMMEDIATE EXECUTION (Stealth)
+    // Runs instantly at 'document-start' to beat site detection scripts.
+    try {
+        loadSettings(); // Load config from storage immediately
 
-        // LISTEN FOR INJECTED BYPASS EVENTS
-        window.addEventListener('ome-bypass-event', (e) => {
-            if (e.detail.type === 'face') {
-                facesDetectedCount++;
-                updateStatusDots();
-            } else if (e.detail.type === 'report') {
-                reportsBlockedCount++;
-                updateStatusDots();
-                triggerReportSound();
-            } else if (e.detail.type === 'ws-ready') {
-                isWsProtectionActive = true;
-                const dot = document.getElementById('status-dot-report');
-                if (dot) {
-                    dot.style.backgroundColor = "#00FF00";
-                    dot.style.boxShadow = "0 0 8px #00FF00";
-                    dot.title = "Report Protection: Active & Ready";
+        // Inject the bypasses into the Main World NOW
+        installPlatformBypasses();
+
+        // Also run the sandbox-level hooks just in case
+        initializeFingerprintBypasses();
+        initializeCorePrivacyBypasses();
+
+        console.log("[Ome-IP] 🥷 Stealth Modules Injected Immediately");
+    } catch(e) {
+        console.error("[Ome-IP] Critical Stealth Init Error:", e);
+    }
+
+    // 2. DELAYED EXECUTION (UI & DOM)
+    // Runs only after the page is ready to accept buttons/windows.
+    const initUI = () => {
+        try {
+            // Data Loading
+            loadData();
+            fetchOwnIP();
+
+            // UI Creation
+            createLogWindow();
+            createNoteWindow();
+
+            // Inject CSS
+            const style = document.createElement('style');
+            style.type = 'text/css';
+            style.innerHTML = `.chat-container { background-color: transparent !important; }`;
+            document.head.appendChild(style);
+
+            // Event Listeners
+            window.addEventListener("beforeunload", forceSave);
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === 'hidden') forceSave();
+            });
+
+            // Listen for Injected Events (Communication from Main World)
+            window.addEventListener('ome-bypass-event', (e) => {
+                if (e.detail.type === 'face') {
+                    facesDetectedCount++;
+                    updateStatusDots();
+                } else if (e.detail.type === 'report') {
+                    reportsBlockedCount++;
+                    updateStatusDots();
+
+                    // [UPDATED] Check Sound Setting
+                    if (isReportSoundEnabled) {
+                        triggerReportSound();
+                    }
+
+                    showReportPopup();
+
+                    // [UPDATED] REDIRECT TO SAFE PLACE (Google)
+                    // Instead of skipping, we leave immediately to protect the session
+                    setTimeout(() => {
+                        window.location.href = "https://www.google.com";
+                    }, 200);
+
+                } else if (e.detail.type === 'ws-ready') {
+                    isWsProtectionActive = true;
+                    const dot = document.getElementById('status-dot-report');
+                    if (dot) {
+                        dot.style.backgroundColor = "#00FF00";
+                        dot.style.boxShadow = "0 0 8px #00FF00";
+                        dot.title = "Report Protection: Active & Ready";
+                    }
                 }
-            }
-        });
+            });
 
-        // START THE OBSERVERS
-        startStyleObserver();
-        initOmegleAppMonitor();
+            // Start Observers
+            initMasterObserver();
+            initOmegleAppMonitor();
+            initOmegleWebMonitor();
 
-        // --- NEW AUTO CLICKER TRIGGER ---
+            // Restore State
+            if (isDarkModeActive) setTimeout(() => toggleWatermarks(true), 500);
+            const savedGhost = GM_getValue('ome_ghost_mode', false);
+            if (savedGhost) setTimeout(() => {
+                const win = document.getElementById("ip-log-window");
+                if (win) toggleGhostMode(win);
+            }, 600);
 
-        // Apply saved state
-        if (isDarkModeActive) {
-            setTimeout(() => toggleWatermarks(true), 500);
+            logDev("SYS", "UI Initialized");
+            logDev("SYS", `Resolution: ${window.screen.width}x${window.screen.height}`);
+
+        } catch (e) {
+            console.error("[Ome-IP] UI Init Error:", e);
         }
-
-        logDev("SYS", "Console Initialized");
-        logDev("SYS", `Resolution: ${window.screen.width}x${window.screen.height}`);
     };
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+
+    // Only wait for DOM for the UI parts
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initUI);
+    } else {
+        initUI();
+    }
 })();
