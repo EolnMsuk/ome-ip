@@ -1,129 +1,125 @@
-# ome-ip v2.0
-
-![ome-ads](https://github.com/user-attachments/assets/01f14147-2fab-4f52-b826-fc56abbd953b)
+# ome-ip v3.0
 
 ![Version](https://img.shields.io/badge/version-2.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-**The ultimate power suite for Ome.tv and Omegle-like platforms.** `ome-ip` is a sophisticated Userscript that injects a pro-level control panel directly into your chat interface. It provides real-time geolocation, stealth features, automation, and advanced protection layers that bypass standard restrictions.
+**Pro IP Tool & Privacy Suite for all Omegle-like sites.**
+ome-ip is a powerful Userscript designed to enhance your experience on random video chat platforms. It provides real-time partner geolocation, automated protection against bans/reports, media stream manipulation (Fake Camera), and advanced blocking capabilities.
 
-## 📖 Table of Contents
-- [⚡ Key Features](#-key-features)
-- [💻 Current Support](#-current-support)
-- [📥 Installation Guide](#-installation-guide)
-- [📝 Disclaimer](#-disclaimer)
-- [💰 Donate](#-donate)
+<img width="1837" height="2261" alt="ome-ip3" src="https://github.com/user-attachments/assets/bc269d8c-415c-4261-a175-c93e74182b0a" />
 
 ---
 
-## ⚡ Key Features
+## 🌟 Features
 
-### 🌍 Advanced Geolocation & IP Tools
+### 🛡️ Core Protection & Privacy
 
-* **Real-Time IP Fetching:** Instantly grabs partner IP addresses using native WebRTC interception.
-* **Precision Geolocation:** Displays City, Region, Country, and ISP information (powered by `ip-api.com`).
-* **Map Integration:** Built-in draggable Map Window.
-* **Street View Mode:** Drop directly into street view of the target location.
-
-
-* **Relay/VPN Detection:** Automatically detects and flags TURN server/Relay IPs (proxies) in red to warn you of masked connections.
-* **History & Notes:** Saves history of encountered IPs. Add custom notes to specific IPs (e.g., "Good convo", "Bot") that reappear if you match them again.
-
-### 🛡️ Stealth & Protection (Bypass)
-
-* **Face Detection Bypass:** Spoofs the camera stream for "Face Detection" checks, preventing bans on sites that require a visible face.
-* **Report Protection:** Intercepts and blocks WebSocket report packets (`rimage`/`banned` signals), preventing many common automated bans.
-* **Native Code Masking:** Overwrites browser functions (`RTCPeerConnection`, `Worker`, `WebSocket`) with "native-looking" wrappers to prevent sites from detecting the extension.
-* **Anti-Fingerprint:** Prevents sites from sniffing your true location via WebRTC leakage.
-
-### 🚫 Blocking & Filtering
-
-* **Country Blocker:** Block entire countries or specific regions.
-* Sort countries by **Continent**, **A-Z**, or **Language**.
-* Smart "Auto-Skip" triggers immediately upon matching a blocked country.
+* **IP Grabbing & Geolocation:** Instantly displays your partner's IP address, Country, Region, City, and ISP.
+* **VPN/Relay Detection:** Automatically detects and warns you if a partner is using a Proxy or Turn Server (Relay IP).
+* **Report Protection:** Intercepts WebSocket signals to block "Report" or "Ban" attempts from reaching the server. Includes an audio alert ("Report Detected") and auto-redirects to safety.
+* **Face Detection Bypass:** Tricks site algorithms into thinking a real face is visible, preventing "Black Screen" bans.
+* **Anti-Bot & Fingerprint Spoofing:**
+* Spoofs Navigator properties (UserAgent, Hardware Concurrency, Device Memory).
+* Bypasses automated "human verification" checks (Variance tests, Scroll length).
 
 
-* **IP Blocker:** One-click "Block IP" button. Automatically skips if you ever match that user again.
-* **Connection Upgrade Logic:** Smartly handles IPv4 vs IPv6, prioritizing direct connections over relays for better location accuracy.
 
-### 🤖 Automation & UI
+### 🚫 Blocking & Automation
 
-* **Smart Skip:** Intelligent skipping logic that attempts multiple methods (ESC key, clicking 'Next', DOM simulation) to ensure the skip happens even if the site lags.
-* **Dark Mode / UI Cleaner:** Turns the interface black and hides site watermarks/logos.
-* **Element Hider:** Click-to-select tool to permanently hide/black out specific annoying page elements (ads, banners).
+* **Country Blocker:** Automatically skip partners from specific countries. Includes a visual continent map selector.
+* **IP Blocker:** Permanently block specific IPs. If you match with them again, the script auto-skips immediately.
+* **Auto-Skip Logic:** Smart skipping algorithms for Ome.tv, OmegleApp, Umingle, and more.
+* **Disconnect Monitor:** Automatically finds a new partner if the current one disconnects (Specific support for OmegleApp & OmegleWeb).
 
+### 🎬 Media & Hardware Manipulation
 
-* **Ghost Mode:** Makes the extension window transparent and non-interactive (click-through) for recording/streaming without obstruction.
-* **Volume Booster:** Independent volume slider to boost or lower partner audio.
-* **Dev Console:** Built-in log viewer for debugging connection events and errors.
+* **Fake Camera:** Replace your webcam feed with a custom video loop (supports `.mp4` URLs).
+* **Anti-Ban Jitter:** Adds subtle movement/noise to static video feeds to prevent "Static Image" bans.
+* **Device Spoofing:** Renames your hardware inputs in the browser (e.g., renames "Default Cam" to "Logitech C920").
+* **Raw Audio Mode:** Disables echo cancellation and noise suppression for high-fidelity audio processing.
+* **Thumbnail Capture:** Automatically captures and saves a screenshot of your partner's video stream after connection.
+
+### 🛠️ Advanced Tools & UI
+
+* **Draggable & Resizable UI:** A modern, dark-themed interface that can be moved, resized, or minimized.
+* **Ghost Mode:** Makes the interface transparent to monitor stats without obstructing the view.
+* **Map Integration:** Open a Google Maps window (Standard or Street View) centered on your partner's location.
+* **Notes & History:** Keep a history of IPs encountered, save custom notes for specific users, and view past thumbnails.
+* **Element Selector:** Visually select and hide (or blackout) annoying website elements (ads, banners, watermarks).
+* **Developer Console:** Built-in log window to view raw WebRTC connection data and API errors.
 
 ---
 
-## 💻 Current Support
+## 📋 Supported Sites
 
-This script is optimized for and matches the following sites:
+The script is configured to run on the following platforms:
 
-* `ome.tv`
-* `thundr.com`
-* `monkey.app`
-* `omegleapp.me`
-* `umingle.com`
-* `omegleweb.com`
-* `chatroulette.com`
-
-<img width="1729" height="1749" alt="ome-ipSS" src="https://github.com/user-attachments/assets/bd2a084a-0168-4afe-b9ca-fb5bf33e2eb5" />
-
----
-
-## 📥 Installation Guide
-
-This tool functions as a **Userscript** and requires a browser extension to run. Follow these steps to install it on Windows (Chrome, Edge, Brave, or Firefox).
-
-### Step 1: Install a Userscript Manager
-
-You need an extension that manages scripts. **Tampermonkey** is the industry standard.
-
-* **Chrome / Brave / Edge:** [Click here to install Tampermonkey from Chrome Web Store](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo)
-* **Firefox:** [Click here to install Tampermonkey from Add-ons](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/)
-
-### Step 2: Install ome-ip
-
-1. Click the **Tampermonkey icon** in your browser toolbar and select **"Create a new script..."**.
-2. Delete **all** the default code currently in the editor so it is completely blank.
-3. Copy the entire content of `ome-ip.js` from this repository.
-4. Paste the code into the Tampermonkey editor.
-5. Press **File > Save** (or `Ctrl+S`).
-
-### Step 3: Run It
-
-1. Go to one of the supported sites (e.g., `ome.tv`).
-2. The **ome-ip** control panel will appear automatically on the screen (draggable black window).
-3. **Troubleshooting:** If the window does not appear, refresh the page. Ensure the "Status" dots in the panel are green (Active).
+* Ome.tv
+* OmegleApp.me
+* Chatroulette.com
+* Monkey.app
+* Omegleweb.com
+* Thundr.com
+* Umingle.com
+* Webcamtests.com (for testing)
 
 ---
 
-## ⚙️ How to Use
+## ⚙️ Installation Guide
 
-* **Draggable Windows:** All panels (Main, Map, Settings) are draggable. Click and hold the header/background to move them.
-* **Status Toggles (Top Left):**
-* 🎭 **Face:** Toggle Face Detection bypass.
-* 🛡️ **Shield:** Toggle Report/Ban protection.
-* 📡 **Dish:** Toggle IP Grabbing.
+### Prerequisites
 
+You need a Userscript manager installed in your browser.
 
-* **Badges (Top Right):**
-* `CNTRY`: Toggles the Country Blocker on/off.
-* `IP`: Toggles the specific IP Blocker on/off.
-* `CMD`: Opens the developer log console.
-* 👻 (Ghost): Toggles transparency mode.
-* 👁️ (Eye): Toggles "Dark Mode" and hides website watermarks.
+* **Chrome/Edge/Brave:** [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/).
+* **Firefox:** [Greasemonkey](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) or Tampermonkey.
 
+### Install Steps
 
-* **Map:** Click the **Blue MAP Button** to open the location viewer. Click "Open Street View" inside the map to see the street level.
+1. Click on your Userscript manager extension icon and select **"Create a new script"**.
+2. Delete any default code in the editor.
+3. Copy the entire contents of `ome-ip.js`.
+4. Paste the code into the editor.
+5. Press `Ctrl+S` or click **File > Save**.
+6. Visit any supported site (e.g., [https://ome.tv/](https://ome.tv/)) and the overlay will appear automatically.
 
 ---
 
-## 📝 Disclaimer
+## 🔧 Recommended Browser Settings
+
+To ensure all features (especially IP Grabbing and Fake Camera) work correctly, please configure your browser as follows:
+
+1. **WebRTC must be ENABLED:**
+* Do *not* use extensions like "WebRTC Control" or "Disable WebRTC" that completely block IP leakage. This script *needs* to read the WebRTC candidates to fetch the IP.
+* If you use a VPN, ensure it allows WebRTC traffic (Split Tunneling might be required if the VPN blocks P2P).
+
+
+2. **Autoplay Permissions:**
+* Allow the site to Autoplay video and audio. This ensures the "Fake Camera" video loads and plays correctly without user interaction.
+
+
+3. **Ad Blockers:**
+* Some aggressive ad blockers may interfere with the IP geolocation API (`ipwho.is`). If stats say "Net Error," try whitelisting the chat site or the API domain.
+
+
+4. **Hardware Acceleration:**
+* For the best performance with the "Anti-Ban Jitter" and "Fake Camera" overlays, ensure Hardware Acceleration is enabled in your browser settings.
+
+
+
+---
+
+## 🕹️ Controls & Shortcuts
+
+* **Move Windows:** Click and drag the header or background of any window.
+* **Resize Windows:** Drag the corners of the windows.
+* **Ghost Mode:** Toggle the 👻 icon to make the UI transparent.
+* **Lock UI:** Click the 🔓/🔒 icon in the top center to prevent accidental clicks on toggles.
+* **Hide Watermarks:** Use the "Eye" 👁️ menu to toggle Dark Mode and hide site logos.
+
+---
+
+## ⚠️ Disclaimer
 
 *This tool is for educational purposes and research into WebRTC logic and browser security. The developer is not responsible for bans or account suspensions resulting from the use of this tool. Use responsibly.*
 
