@@ -1,12 +1,13 @@
-# ome-ip v3.0
+# ome-ip
 
-![Version](https://img.shields.io/badge/version-2.1-blue)
+![Version](https://img.shields.io/badge/version-3.0-black)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 **Pro IP Tool & Privacy Suite for all Omegle-like sites.**
 ome-ip is a powerful Userscript designed to enhance your experience on random video chat platforms. It provides real-time partner geolocation, automated protection against bans/reports, media stream manipulation (Fake Camera), and advanced blocking capabilities.
 
-<img width="1837" height="2261" alt="ome-ip3" src="https://github.com/user-attachments/assets/bc269d8c-415c-4261-a175-c93e74182b0a" />
+<img width="1837" height="2261" alt="ome-ip3" src="https://github.com/user-attachments/assets/c41e5baa-e85e-4ec1-aca4-1a9f281e1b56" />
+
 
 ---
 
