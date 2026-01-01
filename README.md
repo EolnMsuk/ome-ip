@@ -1,12 +1,10 @@
 # ome-ip
 
+ome-ip is a powerful Userscript designed to enhance your experience on random video chat platforms. It provides real-time partner geolocation, automated protection against bans/reports, media stream manipulation (Fake Camera), and advanced blocking capabilities.
+
 ---
 
 <img width="1837" height="2261" alt="ome-ip3" src="https://github.com/user-attachments/assets/669d4412-1914-424a-9ed4-be23bb082def" />
-
-**Description**
-
-ome-ip is a powerful Userscript designed to enhance your experience on random video chat platforms. It provides real-time partner geolocation, automated protection against bans/reports, media stream manipulation (Fake Camera), and advanced blocking capabilities.
 
 * [Features](#-features)
 * [Installation Guide](#-installation-guide)
