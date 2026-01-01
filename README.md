@@ -8,10 +8,10 @@
 ome-ip is a powerful Userscript designed to enhance your experience on random video chat platforms. It provides real-time partner geolocation, automated protection against bans/reports, media stream manipulation (Fake Camera), and advanced blocking capabilities.
 
 ## 📑 Table of Contents
-* [🌟 Features](#-features)
-* [⚙️ Installation Guide](#-installation-guide)
-* [⚠️ Disclaimer](#-disclaimer)
-* [💰 Donate](#-donate)
+* [Features](#-features)
+* [Installation Guide](#-installation-guide)
+* [Disclaimer](#-disclaimer)
+* [Donate](#-donate)
 
 ---
 
