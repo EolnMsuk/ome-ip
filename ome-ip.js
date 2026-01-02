@@ -18,6 +18,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        unsafeWindow
 // @run-at       document-start
 // ==/UserScript==
 
@@ -459,17 +460,46 @@
         }
     }
 
-	// --- ENHANCED FINGERPRINT SPOOFING (PORTED) ---
+	// --- ENHANCED FINGERPRINT SPOOFING (PERSISTENT) ---
     class EnhancedUserPersona {
         constructor() {
-            const platforms = ["Win32", "MacIntel", "Linux x86_64"];
-            this.platform = platforms[Math.floor(Math.random() * platforms.length)];
-            // Realistic hardware stats
-            this.hardwareConcurrency = [4, 8, 12, 16][Math.floor(Math.random() * 4)];
-            this.deviceMemory = [8, 16, 32][Math.floor(Math.random() * 3)];
-            this.userAgent = this.generateUserAgent();
-            // Randomize scroll length to look like a real user session
-            this.scrollLength = Math.floor(Math.random() * (40000 - 15000 + 1)) + 15000;
+            // 1. Try to load saved persona from storage
+            const savedData = GM_getValue('ome_persona_data', null);
+
+            if (savedData) {
+                // Load existing identity
+                const data = JSON.parse(savedData);
+                this.platform = data.platform;
+                this.hardwareConcurrency = data.hardwareConcurrency;
+                this.deviceMemory = data.deviceMemory;
+                this.userAgent = data.userAgent;
+                this.scrollLength = data.scrollLength;
+                console.log("[Ome-IP] Loaded Saved Persona:", this.platform);
+            } else {
+                // Generate NEW identity
+                const platforms = ["Win32", "MacIntel", "Linux x86_64"];
+                this.platform = platforms[Math.floor(Math.random() * platforms.length)];
+                // Realistic hardware stats
+                this.hardwareConcurrency = [4, 8, 12, 16][Math.floor(Math.random() * 4)];
+                this.deviceMemory = [8, 16, 32][Math.floor(Math.random() * 3)];
+                this.userAgent = this.generateUserAgent();
+                // Randomize scroll length to look like a real user session
+                this.scrollLength = Math.floor(Math.random() * (40000 - 15000 + 1)) + 15000;
+                
+                // SAVE IT
+                this.save();
+                console.log("[Ome-IP] Generated New Persona:", this.platform);
+            }
+        }
+
+        save() {
+            GM_setValue('ome_persona_data', JSON.stringify({
+                platform: this.platform,
+                hardwareConcurrency: this.hardwareConcurrency,
+                deviceMemory: this.deviceMemory,
+                userAgent: this.userAgent,
+                scrollLength: this.scrollLength
+            }));
         }
 
         generateUserAgent() {
@@ -485,7 +515,6 @@
     }
 
     const globalPersona = new EnhancedUserPersona();
-
     function initializeFingerprintBypasses() {
         if (!isFingerprintSpoofingEnabled) return;
 
@@ -975,39 +1004,46 @@
         };
     }
 
-// --- UNIFIED WEBSOCKET PROXY ---
-    // Handles both IP Grabbing (JSON) and Report Protection (String scanning)
-    const OriginalWebSocket = window.WebSocket;
+    // --- UNIFIED WEBSOCKET PROXY (FIXED) ---
+    // Uses Strict JSON Parsing to avoid False Positives
+    const OriginalWebSocket = unsafeWindow.WebSocket;
     const UnifiedWebSocket = function(...args) {
         const socket = new OriginalWebSocket(...args);
 
         socket.addEventListener('message', (event) => {
             const data = event.data;
 
-            // 1. Report Protection Logic (String Scan)
-            // Checks enabled flag loaded at start
-            if (isReportProtectionEnabled && typeof data === 'string') {
-                if (data.includes('ban') || data.includes('banned') || data.includes('rimage')) {
-                    console.log("[Ome-IP] 🛡️ Blocked Report/Ban Signal:", data);
-                    // Stop the event from reaching the site code
-                    event.stopImmediatePropagation();
-                    event.stopPropagation();
-                    // Dispatch event for UI notification
-                    window.dispatchEvent(new CustomEvent('ome-bypass-event', { detail: { type: 'report' } }));
-                    return;
-                }
-            }
-
-            // 2. IP Grabbing Logic (JSON Scan)
             if (typeof data === 'string') {
                 try {
-                    // Only parse if it looks like JSON to save performance
+                    // Only process if it looks like JSON
                     if (data.startsWith('{') || data.startsWith('[')) {
                         const msg = JSON.parse(data);
 
+                        // -------------------------------------------------
+                        // 1. STRICT REPORT PROTECTION (JSON Mode)
+                        // -------------------------------------------------
+                        // Only trigger if the event is EXACTLY 'rimage' (Report Image)
+                        // or if the server explicitly says 'banned': true
+                        if (isReportProtectionEnabled) {
+                            if (msg.event === 'rimage' || msg.banned === true || msg.event === 'ban') {
+                                console.log("[Ome-IP] 🛡️ Blocked Report Signal:", msg);
+                                
+                                // Stop the event from reaching the site
+                                event.stopImmediatePropagation();
+                                event.stopPropagation();
+                                
+                                // Alert the UI
+                                window.dispatchEvent(new CustomEvent('ome-bypass-event', { detail: { type: 'report' } }));
+                                return; // Stop processing this message
+                            }
+                        }
+
+                        // -------------------------------------------------
+                        // 2. IP GRABBING LOGIC
+                        // -------------------------------------------------
                         // Fallback IP Grabber (Signaling)
                         if (msg.event === 'conn' && msg.candidates) {
-                             // [DEV LOG]
+                            // [DEV LOG]
                             let info = "ID: " + (msg.id || "N/A");
                             if (msg.topics) info += " | Topics: " + msg.topics;
                             logDev("RTC", "Partner Data: " + info);
@@ -1028,7 +1064,9 @@
                             }
                         }
                     }
-                } catch(e) {}
+                } catch(e) {
+                    // Ignore JSON parse errors (non-JSON messages)
+                }
             }
         });
 
@@ -1043,7 +1081,7 @@
         writable: true, configurable: true
     });
 
-    window.WebSocket = UnifiedWebSocket;
+    unsafeWindow.WebSocket = UnifiedWebSocket;
 
     function makeDraggable(triggerElement, movingElement) {
         let isDragging = false;
@@ -1263,22 +1301,17 @@
         const fingerprintDot = document.getElementById('status-dot-fingerprint');
         const udpDot = document.getElementById('status-dot-udp');
         const ghostDot = document.getElementById('status-dot-ghost');
-        const rawAudioDot = document.getElementById('status-dot-raw-audio');
+        const thumbsDot = document.getElementById('status-dot-thumbs'); // [NEW]
         const antiBanDot = document.getElementById('status-dot-antiban');
-        const antiBotDot = document.getElementById('status-dot-antibot'); // [NEW]
+        const antiBotDot = document.getElementById('status-dot-antibot');
 
         const applyStyle = (el, isActive, type) => {
             if (!el) return;
-
-            // Default Colors (Green/Red)
             let color = isActive ? "#00FF00" : "#FF0000";
             let boxShadow = isActive ? `0 0 8px ${color}` : `0 0 3px ${color}`;
             let borderColor = color;
-
-            // [UPDATED] Background Color Logic
             let bgColor = isWindowTransparent ? "rgba(0,0,0,0.1)" : "#000000";
 
-            // --- SPECIAL GHOST MODE STYLE (Bright White) ---
             if (type === 'ghost') {
                 borderColor = isActive ? "#FFFFFF" : "#888";
                 if (isActive) {
@@ -1290,9 +1323,8 @@
                 }
             }
 
-            // --- YELLOW GLOW GROUP (UDP, FAKE CAM, RELAY, SPOOF, JITTER) ---
             if ((type === 'udp' || type === 'camera' || type === 'relay' || type === 'spoof' || type === 'antiban') && isActive) {
-                color = "#FFD700"; // Gold
+                color = "#FFD700";
                 boxShadow = "0 0 10px #FFD700";
                 borderColor = "#FFD700";
             }
@@ -1301,14 +1333,12 @@
             el.style.boxShadow = boxShadow;
             el.style.borderColor = borderColor;
 
-            // Handle Icon Animation (Jiggle)
             const iconSpan = el.querySelector(".ome-icon-span");
             if (iconSpan) {
                 if (isActive) iconSpan.classList.add("ome-anim-jiggle");
                 else iconSpan.classList.remove("ome-anim-jiggle");
             }
 
-            // Tooltips
             if (type === 'ipgrab') el.title = isActive ? "IP Grabbing: ON" : "IP Grabbing: OFF";
             if (type === 'face') el.title = isActive ? `Face Bypass: Active (${facesDetectedCount})` : "Face Bypass: DISABLED";
             if (type === 'report') el.title = isActive ? `Report Protection: Active (${reportsBlockedCount})` : "Report Protection: DISABLED";
@@ -1318,14 +1348,13 @@
             if (type === 'relay') el.title = isActive ? "Force Relay: ON" : "Force Relay: OFF";
             if (type === 'spoof') el.title = isActive ? "Device Labeling: ON" : "Device Labeling: OFF";
             if (type === 'fingerprint') el.title = isActive ? "Fingerprint Spoofing: ON" : "Fingerprint Spoofing: OFF";
-            if (type === 'udp') el.title = isActive ? "Strict UDP: ON (Blocks P2P)" : "Strict UDP: OFF";
+            if (type === 'udp') el.title = isActive ? "UDP Only: ON" : "UDP Only: OFF";
             if (type === 'ghost') el.title = isActive ? "Ghost Mode: ON" : "Ghost Mode: OFF";
-            if (type === 'rawaudio') el.title = isActive ? "Raw Audio: ON (No Suppression)" : "Raw Audio: OFF (Default)";
+            if (type === 'thumbs') el.title = isActive ? "Thumbnail History: ON" : "Thumbnail History: OFF";
             if (type === 'antiban') el.title = isActive ? "Anti-Ban Frames: ON (Dynamic Jitter)" : "Anti-Ban Frames: OFF (Static)";
             if (type === 'antibot') el.title = isActive ? "Anti-Bot Bypass: ON" : "Anti-Bot Bypass: OFF";
         };
 
-        // Apply styles to all dots
         applyStyle(ipDot, isIPGrabbingEnabled, 'ipgrab');
         applyStyle(faceDot, isFaceProtectionEnabled, 'face');
         applyStyle(reportDot, isReportProtectionEnabled, 'report');
@@ -1337,11 +1366,10 @@
         applyStyle(fingerprintDot, isFingerprintSpoofingEnabled, 'fingerprint');
         applyStyle(udpDot, FAKE_CONFIG.udpStrict, 'udp');
         applyStyle(ghostDot, isWindowTransparent, 'ghost');
-        applyStyle(rawAudioDot, FAKE_CONFIG.rawAudio, 'rawaudio');
+        applyStyle(thumbsDot, isThumbnailCaptureEnabled, 'thumbs'); // [NEW]
         applyStyle(antiBanDot, FAKE_CONFIG.antiBanFrames, 'antiban');
-        applyStyle(antiBotDot, isAntiBotEnabled, 'antibot'); // [NEW]
+        applyStyle(antiBotDot, isAntiBotEnabled, 'antibot');
 
-        // Sync Advanced Settings...
         updateAdvToggleVisual("adv-toggle-ip-grab", isIPGrabbingEnabled);
         updateAdvToggleVisual("adv-toggle-face-bypass", isFaceProtectionEnabled);
         updateAdvToggleVisual("adv-toggle-report-prot", isReportProtectionEnabled);
@@ -1354,7 +1382,8 @@
         updateAdvToggleVisual("adv-toggle-udp-strict", FAKE_CONFIG.udpStrict);
         updateAdvToggleVisual("adv-toggle-raw-audio", FAKE_CONFIG.rawAudio);
         updateAdvToggleVisual("adv-toggle-antiban", FAKE_CONFIG.antiBanFrames);
-        updateAdvToggleVisual("adv-toggle-antibot", isAntiBotEnabled); // [NEW]
+        updateAdvToggleVisual("adv-toggle-antibot", isAntiBotEnabled);
+        updateAdvToggleVisual("adv-toggle-thumbs", isThumbnailCaptureEnabled); // [NEW] Sync
 
         updateSettingSwitch("setting-toggle-ip", ipBlockingEnabled, "🛡️ IP Blocking");
         updateSettingSwitch("setting-toggle-country", countryBlockingEnabled, "🌍 Country Blocking");
@@ -2248,31 +2277,38 @@
 
         // --- [NEW] Task 6: New Grid Layout ---
 
-        // ROW 1: Fake Cam | Jitter | Raw Audio
-        const row1 = document.createElement("div"); Object.assign(row1.style, rowStyle);
-        row1.appendChild(createToggleDot("status-dot-camera", () => FAKE_CONFIG.enabled, "🎬", "Fake Cam.mp4", () => {
-            FAKE_CONFIG.enabled = !FAKE_CONFIG.enabled; GM_setValue('ome_fake_cam_enabled', FAKE_CONFIG.enabled);
-        }));
-        row1.appendChild(createToggleDot("status-dot-antiban", () => FAKE_CONFIG.antiBanFrames, "🛡️", "Jitter", () => {
-            FAKE_CONFIG.antiBanFrames = !FAKE_CONFIG.antiBanFrames; GM_setValue('ome_antiban_frames', FAKE_CONFIG.antiBanFrames);
-        }));
-        row1.appendChild(createToggleDot("status-dot-raw-audio", () => FAKE_CONFIG.rawAudio, "🎤", "Raw Audio", () => {
-            FAKE_CONFIG.rawAudio = !FAKE_CONFIG.rawAudio; GM_setValue('ome_raw_audio', FAKE_CONFIG.rawAudio);
-            showToast("Raw Audio: Reload to apply");
-        }));
-        mainHeaderContainer.appendChild(row1);
+        // --- [UPDATED] Grid Layout ---
 
-        // ROW 2: UDP Only | Device Spoof | Relay
-        const row2 = document.createElement("div"); Object.assign(row2.style, rowStyle);
-        row2.appendChild(createToggleDot("status-dot-udp", () => FAKE_CONFIG.udpStrict, "⚠️", "UDP Only", () => {
-            FAKE_CONFIG.udpStrict = !FAKE_CONFIG.udpStrict; GM_setValue('ome_udp_strict', FAKE_CONFIG.udpStrict);
+        // ROW 1: UDP Only | Relay | Device Spoof
+        const row1 = document.createElement("div"); Object.assign(row1.style, rowStyle);
+        row1.appendChild(createToggleDot("status-dot-udp", () => FAKE_CONFIG.udpStrict, "⚠️", "UDP Only", () => {
+            if (!FAKE_CONFIG.udpStrict) {
+                if (confirm("⚠️ WARNING: UDP Strict Mode\n\nThis blocks all non-P2P connections.\nSome sites may break if they require relay servers.\n\nEnable?")) {
+                    FAKE_CONFIG.udpStrict = true; 
+                    GM_setValue('ome_udp_strict', true);
+                }
+            } else {
+                if (confirm("⚠️ DISABLE UDP PROTECTION?\n\nDisabling Strict UDP may allow sites to route you through Relay servers (hiding IP).\n\nDisable anyway?")) {
+                    FAKE_CONFIG.udpStrict = false; 
+                    GM_setValue('ome_udp_strict', false);
+                }
+            }
         }));
-        row2.appendChild(createToggleDot("status-dot-spoof", () => FAKE_CONFIG.spoofDeviceNames, "🏷️", "Device Spoof", () => {
+        row1.appendChild(createToggleDot("status-dot-relay", () => FAKE_CONFIG.forceRelay, "🖧", "Relay", () => {
+            if (FAKE_CONFIG.forceRelay) {
+                if (!confirm("⚠️ DISABLE RELAY FORCE?\n\nYour real IP might be exposed if a direct connection is established.\n\nDisable anyway?")) return;
+            }
+            FAKE_CONFIG.forceRelay = !FAKE_CONFIG.forceRelay; 
+            GM_setValue('ome_force_relay', FAKE_CONFIG.forceRelay);
+        }, "22px"));
+        row1.appendChild(createToggleDot("status-dot-spoof", () => FAKE_CONFIG.spoofDeviceNames, "🏷️", "Device Spoof", () => {
+            if (FAKE_CONFIG.spoofDeviceNames) {
+                if (!confirm("⚠️ DISABLE SPOOFING?\n\nReal device labels will be visible to the site.\n\nDisable anyway?")) return;
+            }
             const newState = !FAKE_CONFIG.spoofDeviceNames;
             FAKE_CONFIG.spoofDeviceNames = newState;
             GM_setValue('ome_spoof_devices', newState);
 
-            // Sync One Mode
             FAKE_CONFIG.oneCameraMode = newState;
             FAKE_CONFIG.oneInputMode = newState;
             FAKE_CONFIG.oneOutputMode = newState;
@@ -2283,73 +2319,109 @@
             updateAdvToggleVisual("adv-toggle-device-spoof", newState);
             if (newState === true) createAdvancedSettingsWindow("adv-toggle-device-spoof");
         }));
-        row2.appendChild(createToggleDot("status-dot-relay", () => FAKE_CONFIG.forceRelay, "🖧", "Relay", () => {
-            FAKE_CONFIG.forceRelay = !FAKE_CONFIG.forceRelay; GM_setValue('ome_force_relay', FAKE_CONFIG.forceRelay);
-        }, "22px"));
+        mainHeaderContainer.appendChild(row1);
+
+        // ROW 2: Fake Cam | Jitter | Fingerprint
+        const row2 = document.createElement("div"); Object.assign(row2.style, rowStyle);
+        row2.appendChild(createToggleDot("status-dot-camera", () => FAKE_CONFIG.enabled, "🎬", "Fake Cam.mp4", () => {
+            if (!FAKE_CONFIG.enabled) {
+                if (confirm("⚠️ WARNING: Fake Camera Mode\n\nThis will override your video input with the configured MP4 loop.\n\nContinue?")) {
+                    FAKE_CONFIG.enabled = true; 
+                    GM_setValue('ome_fake_cam_enabled', true);
+                    createAdvancedSettingsWindow("adv-toggle-fake-cam"); 
+                }
+            } else {
+                FAKE_CONFIG.enabled = false; 
+                GM_setValue('ome_fake_cam_enabled', false);
+            }
+        }));
+        row2.appendChild(createToggleDot("status-dot-antiban", () => FAKE_CONFIG.antiBanFrames, "🛡️", "Jitter", () => {
+            FAKE_CONFIG.antiBanFrames = !FAKE_CONFIG.antiBanFrames; 
+            GM_setValue('ome_antiban_frames', FAKE_CONFIG.antiBanFrames);
+        }));
+        row2.appendChild(createToggleDot("status-dot-fingerprint", () => isFingerprintSpoofingEnabled, "🧬", "Fingerprint", () => {
+            isFingerprintSpoofingEnabled = !isFingerprintSpoofingEnabled; GM_setValue('ome_fingerprint_spoofing', isFingerprintSpoofingEnabled);
+            showToast("Reload required to apply");
+        }));
         mainHeaderContainer.appendChild(row2);
 
-        // ROW 3: Report Bypass | Face Bypass | Fingerprint
+        // ROW 3: Report Bypass | Face Bypass | Anti-Bot
         const row3 = document.createElement("div"); Object.assign(row3.style, rowStyle);
         row3.appendChild(createToggleDot("status-dot-report", () => isReportProtectionEnabled, "🖕", "Report Bypass", () => {
-            isReportProtectionEnabled = !isReportProtectionEnabled; GM_setValue('ome_report_protection', isReportProtectionEnabled);
+            isReportProtectionEnabled = !isReportProtectionEnabled; 
+            GM_setValue('ome_report_protection', isReportProtectionEnabled);
             window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'report', enabled: isReportProtectionEnabled } }));
+            
+            // Sync logic for hiding/showing Report Sounds in Advanced
+            const soundRow = document.getElementById("adv-toggle-rep-sound");
+            if (soundRow) soundRow.style.display = isReportProtectionEnabled ? "flex" : "none";
         }));
         row3.appendChild(createToggleDot("status-dot-face", () => isFaceProtectionEnabled, "🎭", "Face Bypass", () => {
             isFaceProtectionEnabled = !isFaceProtectionEnabled; GM_setValue('ome_face_protection', isFaceProtectionEnabled);
             window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'face', enabled: isFaceProtectionEnabled } }));
         }));
-        row3.appendChild(createToggleDot("status-dot-fingerprint", () => isFingerprintSpoofingEnabled, "🧬", "Fingerprint", () => {
-            isFingerprintSpoofingEnabled = !isFingerprintSpoofingEnabled; GM_setValue('ome_fingerprint_spoofing', isFingerprintSpoofingEnabled);
-            showToast("Reload required to apply");
+        row3.appendChild(createToggleDot("status-dot-antibot", () => isAntiBotEnabled, "🤖", "Anti-Bot", () => {
+            isAntiBotEnabled = !isAntiBotEnabled; GM_setValue('ome_anti_bot', isAntiBotEnabled);
+            showToast("Anti-Bot: Reload to Apply changes");
         }));
         mainHeaderContainer.appendChild(row3);
 
-        // ROW 4: Cntry Blckr | IP Blocker | IP Grabber
+        // ROW 4: Country Block | Images | IP Block
         const row4 = document.createElement("div"); Object.assign(row4.style, rowStyle);
-        row4.appendChild(createToggleDot("status-dot-country", () => countryBlockingEnabled, "🌐", "Cntry Blckr", () => {
+        row4.appendChild(createToggleDot("status-dot-country", () => countryBlockingEnabled, "🌍", "Country Block", () => {
             countryBlockingEnabled = !countryBlockingEnabled;
             if (countryBlockingEnabled && !isIPGrabbingEnabled) {
-                isIPGrabbingEnabled = true; showToast("IP Grabber Auto-Enabled");
+                isIPGrabbingEnabled = true; GM_setValue('ome_ip_grabbing', true); showToast("IP Grabber Auto-Enabled");
             }
-            queueSave();
+            saveCoreSettings(); updateStatusDots(); updateAdvToggleVisual("adv-toggle-country-block", countryBlockingEnabled);
         }));
-        row4.appendChild(createToggleDot("status-dot-ipblock", () => ipBlockingEnabled, "⛔", "IP Blocker", () => {
+        row4.appendChild(createToggleDot("status-dot-thumbs", () => isThumbnailCaptureEnabled, "🖼️", "Images", () => {
+            isThumbnailCaptureEnabled = !isThumbnailCaptureEnabled;
+            GM_setValue('ome_thumb_capture', isThumbnailCaptureEnabled);
+            updateStatusDots();
+            updateAdvToggleVisual("adv-toggle-thumbs", isThumbnailCaptureEnabled);
+            showToast(`Thumbnails: ${isThumbnailCaptureEnabled ? "ON" : "OFF"}`);
+        }));
+        row4.appendChild(createToggleDot("status-dot-ipblock", () => ipBlockingEnabled, "🛡️", "IP Block", () => {
             ipBlockingEnabled = !ipBlockingEnabled;
             if (ipBlockingEnabled && !isIPGrabbingEnabled) {
-                isIPGrabbingEnabled = true; showToast("IP Grabber Auto-Enabled");
+                isIPGrabbingEnabled = true; GM_setValue('ome_ip_grabbing', true); showToast("IP Grabber Auto-Enabled");
             }
-            queueSave();
-        }));
-        row4.appendChild(createToggleDot("status-dot-ipgrab", () => isIPGrabbingEnabled, "📡", "IP Grabber", () => {
-            isIPGrabbingEnabled = !isIPGrabbingEnabled; GM_setValue('ome_ip_grabbing', isIPGrabbingEnabled);
-            if (!isIPGrabbingEnabled) {
-                if(ipBlockingEnabled || countryBlockingEnabled) {
-                    ipBlockingEnabled = false; countryBlockingEnabled = false; showToast("Blockers Disabled (Requires Grabber)");
-                }
-            }
+            saveCoreSettings(); updateStatusDots(); updateAdvToggleVisual("adv-toggle-ip-block", ipBlockingEnabled);
         }));
         mainHeaderContainer.appendChild(row4);
 
-        // ROW 5: Ghost | Anti-Bot | Eye (Menu)
+        // ROW 5: Ghost | IP Grabber | Eye (Menu)
         const row5 = document.createElement("div"); Object.assign(row5.style, rowStyle);
-
         row5.appendChild(createToggleDot("status-dot-ghost", () => isWindowTransparent, "👻", "Ghost Mode", () => {
             toggleGhostMode(win);
         }, "14px", true));
 
-        row5.appendChild(createToggleDot("status-dot-antibot", () => isAntiBotEnabled, "🤖", "Anti-Bot", () => {
-            isAntiBotEnabled = !isAntiBotEnabled; GM_setValue('ome_anti_bot', isAntiBotEnabled);
-            showToast("Anti-Bot: Reload to Apply changes");
+        row5.appendChild(createToggleDot("status-dot-ipgrab", () => isIPGrabbingEnabled, "📡", "IP Grabber", () => {
+            isIPGrabbingEnabled = !isIPGrabbingEnabled; 
+            GM_setValue('ome_ip_grabbing', isIPGrabbingEnabled);
+            if (isIPGrabbingEnabled) {
+                 createAdvancedSettingsWindow("adv-toggle-ip-grab");
+            } else {
+                if(ipBlockingEnabled || countryBlockingEnabled || isThumbnailCaptureEnabled) {
+                    ipBlockingEnabled = false; 
+                    countryBlockingEnabled = false; 
+                    isThumbnailCaptureEnabled = false;
+                    GM_setValue('ome_thumb_capture', false);
+                    showToast("Blockers & History Disabled (Requires Grabber)");
+                    updateStatusDots(); 
+                    updateAdvToggleVisual("adv-toggle-thumbs", false);
+                    updateAdvToggleVisual("adv-toggle-ip-block", false);
+                    updateAdvToggleVisual("adv-toggle-country-block", false);
+                }
+            }
         }));
 
-        // Eye Menu
         const wmWrapper = document.createElement("div");
         wmWrapper.className = "ome-btn-wrapper";
         const wmInner = document.createElement("div");
         wmInner.style.cssText = "position:absolute; top:0; right:0; width:32px; height:32px; display:flex; alignItems:center; justify-content:center; pointerEvents:auto;";
         const wmBtn = document.createElement("div"); wmBtn.id = "watermark-toggle-btn"; wmBtn.className = "icon-btn ome-no-select";
-
-        // Apply styling
         Object.assign(wmBtn.style, { width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #888", backgroundColor: "#000", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" });
 
         const menu = document.createElement("div"); menu.id = "ome-menu-dropdown";
@@ -3510,6 +3582,7 @@
     }
 
     // [FIX] Accept targetId parameter for scrolling
+    // [FIXED ORDER] Advanced Settings Window
     function createAdvancedSettingsWindow(targetId = null) {
         if (document.getElementById("ome-adv-settings-window")) {
             const w = document.getElementById("ome-adv-settings-window");
@@ -3522,9 +3595,21 @@
                 const urlField = document.getElementById("fake-cam-url-row");
                 if (urlField) urlField.style.display = FAKE_CONFIG.enabled ? "flex" : "none";
 
+                // Refresh Resolution field visibility
+                const resField = document.getElementById("fake-cam-res-row");
+                if (resField) resField.style.display = FAKE_CONFIG.enabled ? "flex" : "none";
+
                 // Refresh Spoof visibility
                 const lists = document.getElementById("adv-device-lists-container");
                 if(lists) lists.style.display = FAKE_CONFIG.spoofDeviceNames ? "block" : "none";
+
+                // Refresh IP Grabber Sub-options
+                const grabberSub = document.getElementById("grabber-sub-options");
+                if(grabberSub) grabberSub.style.display = isIPGrabbingEnabled ? "block" : "none";
+
+                // Refresh Report Sounds visibility
+                const repSoundRow = document.getElementById("adv-toggle-rep-sound");
+                if(repSoundRow) repSoundRow.style.display = isReportProtectionEnabled ? "flex" : "none";
 
                 const c = w.querySelector('.ome-scroll-lock');
                 if (c) {
@@ -3636,190 +3721,209 @@
         if(myOwnIPData) updateSettingsHeaderDisplay(ownIpContainer); else ownIpContainer.innerHTML = "<span style='color:#666;'>Fetching data...</span>";
         ipSection.appendChild(ownIpContainer); content.appendChild(ipSection);
 
-        // 2. BLOCKING GROUP
-        const blockHeader = document.createElement("div"); blockHeader.innerHTML = sectionTitle("Blocking Rules");
-        content.appendChild(blockHeader);
+        // 2. MAIN SETTINGS GROUP
+        const mainHeader = document.createElement("div");
+        mainHeader.innerHTML = sectionTitle("Main Settings");
+        content.appendChild(mainHeader);
 
-        const blockGroup = createGroup();
+        const mainGroup = createGroup();
 
-        // Country Blocking (Updated)
-        blockGroup.appendChild(createToggleRow("adv-toggle-country-block", "Country Blocking", "🌍", countryBlockingEnabled, () => {
-            countryBlockingEnabled = !countryBlockingEnabled;
-
-            // [NEW] Auto-Enable Grabber
-            if (countryBlockingEnabled && !isIPGrabbingEnabled) {
-                isIPGrabbingEnabled = true;
-                GM_setValue('ome_ip_grabbing', true);
-                updateAdvToggleVisual("adv-toggle-ip-grab", true); // Sync visual
-                showToast("IP Grabber Auto-Enabled");
-            }
-
-            updateMasterToggles(); saveCoreSettings(); updateAdvToggleVisual("adv-toggle-country-block", countryBlockingEnabled);
-        }));
-
-        // IP Blocking (Updated)
-        blockGroup.appendChild(createToggleRow("adv-toggle-ip-block", "IP Blocking", "🛡️", ipBlockingEnabled, () => {
-            ipBlockingEnabled = !ipBlockingEnabled;
-
-            // [NEW] Auto-Enable Grabber
-            if (ipBlockingEnabled && !isIPGrabbingEnabled) {
-                isIPGrabbingEnabled = true;
-                GM_setValue('ome_ip_grabbing', true);
-                updateAdvToggleVisual("adv-toggle-ip-grab", true); // Sync visual
-                showToast("IP Grabber Auto-Enabled");
-            }
-
-            updateMasterToggles(); saveCoreSettings(); updateAdvToggleVisual("adv-toggle-ip-block", ipBlockingEnabled);
-        }));
-
-        blockGroup.lastChild.style.borderBottom = "none";
-        content.appendChild(blockGroup);
-
-        // --- 3. CORE FEATURES GROUP (REORDERED) ---
-        const coreHeader = document.createElement("div");
-        coreHeader.innerHTML = sectionTitle("Core Features");
-        content.appendChild(coreHeader);
-
-        const coreGroup = createGroup();
-
-        // [MOVED UP] IP Grabber (Now First)
-        coreGroup.appendChild(createToggleRow("adv-toggle-ip-grab", "IP Grabber", "📡", isIPGrabbingEnabled, () => {
+        // --- 1. IP Grabber (Parent) ---
+        mainGroup.appendChild(createToggleRow("adv-toggle-ip-grab", "IP Grabber", "📡", isIPGrabbingEnabled, () => {
             isIPGrabbingEnabled = !isIPGrabbingEnabled;
             GM_setValue('ome_ip_grabbing', isIPGrabbingEnabled);
             updateStatusDots();
 
-            // [UPDATED] Disable BOTH Blockers if Grabber is OFF
+            const sub = document.getElementById("grabber-sub-options");
+            if (sub) sub.style.display = isIPGrabbingEnabled ? "block" : "none";
+
             if (!isIPGrabbingEnabled) {
-                if (ipBlockingEnabled || countryBlockingEnabled) {
-                    ipBlockingEnabled = false;
-                    countryBlockingEnabled = false;
-                    updateMasterToggles();
-                    updateAdvToggleVisual("adv-toggle-ip-block", false);
-                    updateAdvToggleVisual("adv-toggle-country-block", false);
-                    showToast("Blockers Disabled (Requires Grabber)");
-                }
+                // Turning off grabber disables children
+                ipBlockingEnabled = false;
+                countryBlockingEnabled = false;
+                isThumbnailCaptureEnabled = false;
+                GM_setValue('ome_thumb_capture', false);
+
+                updateMasterToggles();
+                updateAdvToggleVisual("adv-toggle-ip-block", false);
+                updateAdvToggleVisual("adv-toggle-country-block", false);
+                updateAdvToggleVisual("adv-toggle-thumbs", false);
+                showToast("Blockers & History Disabled");
             }
         }));
 
-        // [MOVED UP] Raw Audio (Now Second)
-        coreGroup.appendChild(createToggleRow("adv-toggle-raw-audio", "Raw Audio", "🎤", FAKE_CONFIG.rawAudio, () => {
+        // Nested Sub-options for IP Grabber
+        const grabberSub = document.createElement("div");
+        grabberSub.id = "grabber-sub-options";
+        grabberSub.style.display = isIPGrabbingEnabled ? "block" : "none";
+        grabberSub.style.backgroundColor = "rgba(0,0,0,0.2)";
+        grabberSub.style.borderBottom = "1px solid #333";
+
+        // Country Blocking
+        grabberSub.appendChild(createToggleRow("adv-toggle-country-block", "Country Blocking", "🌍", countryBlockingEnabled, () => {
+            countryBlockingEnabled = !countryBlockingEnabled;
+            updateMasterToggles(); saveCoreSettings(); updateAdvToggleVisual("adv-toggle-country-block", countryBlockingEnabled);
+        }));
+
+        // IP Blocking
+        grabberSub.appendChild(createToggleRow("adv-toggle-ip-block", "IP Blocking", "🛡️", ipBlockingEnabled, () => {
+            ipBlockingEnabled = !ipBlockingEnabled;
+            updateMasterToggles(); saveCoreSettings(); updateAdvToggleVisual("adv-toggle-ip-block", ipBlockingEnabled);
+        }));
+
+        // Thumbnail History
+        grabberSub.appendChild(createToggleRow("adv-toggle-thumbs", "Thumbnail History", "🖼️", isThumbnailCaptureEnabled, () => {
+            isThumbnailCaptureEnabled = !isThumbnailCaptureEnabled;
+            GM_setValue('ome_thumb_capture', isThumbnailCaptureEnabled);
+            updateStatusDots();
+            updateAdvToggleVisual("adv-toggle-thumbs", isThumbnailCaptureEnabled);
+        }));
+
+        // Style the nested items
+        Array.from(grabberSub.children).forEach(c => {
+            c.style.paddingLeft = "30px";
+            c.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
+        });
+        mainGroup.appendChild(grabberSub);
+
+        // --- 2. Fingerprint ---
+        mainGroup.appendChild(createToggleRow("adv-toggle-fingerprint", "Fingerprint Spoofing", "🧬", isFingerprintSpoofingEnabled, () => {
+            if (isFingerprintSpoofingEnabled) {
+                if (!confirm("⚠️ DISABLE FINGERPRINTING?\n\nYour real browser fingerprint will be visible.\n\nDisable anyway?")) return;
+            }
+            isFingerprintSpoofingEnabled = !isFingerprintSpoofingEnabled;
+            GM_setValue('ome_fingerprint_spoofing', isFingerprintSpoofingEnabled);
+            updateStatusDots();
+            
+            // Toggle visibility of the reset button immediately
+            const resetBtn = document.getElementById('adv-btn-reset-persona');
+            if (resetBtn) resetBtn.style.display = isFingerprintSpoofingEnabled ? 'flex' : 'none';
+
+            showToast("Reload required to apply");
+        }));
+
+        // [NEW] Reset Persona Button (Nested under Fingerprint)
+        const resetPersonaBtn = createOptBtn("Reset Persona Data", "↻", "#0099FF", () => {
+            if(confirm("Generate NEW Device Fingerprint?\n\nThis will randomize your UserAgent, Hardware stats, and behavior patterns.\n\nPage will reload.")) {
+                GM_setValue('ome_persona_data', null); // Clear saved data
+                location.reload(); // Reload to generate new
+            }
+        }, "Generate new random identity");
+        
+        resetPersonaBtn.id = 'adv-btn-reset-persona'; // Assign ID for toggling
+        resetPersonaBtn.style.paddingLeft = "30px";
+        resetPersonaBtn.style.backgroundColor = "rgba(0,0,0,0.2)";
+        resetPersonaBtn.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
+        
+        // Hide if parent toggle is off
+        if (!isFingerprintSpoofingEnabled) resetPersonaBtn.style.display = 'none';
+
+        mainGroup.appendChild(resetPersonaBtn);
+
+        // --- 3. Anti-Bot ---
+        mainGroup.appendChild(createToggleRow("adv-toggle-antibot", "Anti-Bot Bypass (Variance)", "🤖", isAntiBotEnabled, () => {
+            if (isAntiBotEnabled) {
+                 if (!confirm("⚠️ DISABLE ANTI-BOT?\n\nDisabling this significantly increases the chance of captcha bans.\n\nDisable anyway?")) return;
+            }
+            isAntiBotEnabled = !isAntiBotEnabled;
+            GM_setValue('ome_anti_bot', isAntiBotEnabled);
+            updateStatusDots();
+            showToast("Reload required to apply");
+        }));
+
+        // --- 4. Request Relay ---
+        mainGroup.appendChild(createToggleRow("adv-toggle-force-relay", "Request Relay", "🖧", FAKE_CONFIG.forceRelay, () => {
+            if (FAKE_CONFIG.forceRelay) {
+                if (!confirm("⚠️ DISABLE RELAY FORCE?\n\nYour real IP might be exposed if a direct connection is established.\n\nDisable anyway?")) return;
+            }
+            FAKE_CONFIG.forceRelay = !FAKE_CONFIG.forceRelay;
+            GM_setValue('ome_force_relay', FAKE_CONFIG.forceRelay);
+            updateStatusDots();
+        }));
+
+        // --- 5. UDP Only ---
+        mainGroup.appendChild(createToggleRow("adv-toggle-udp-strict", "UDP Only", "⚠️", FAKE_CONFIG.udpStrict, () => {
+            if (FAKE_CONFIG.udpStrict) {
+                if (!confirm("⚠️ DISABLE UDP PROTECTION?\n\nDisabling Strict UDP may allow sites to route you through Relay servers (hiding IP).\n\nDisable anyway?")) return;
+            }
+            FAKE_CONFIG.udpStrict = !FAKE_CONFIG.udpStrict;
+            GM_setValue('ome_udp_strict', FAKE_CONFIG.udpStrict);
+            updateStatusDots();
+            showToast(FAKE_CONFIG.udpStrict ? "UDP Only: ON" : "UDP Only: OFF");
+        }));
+
+        // --- 6. Face Bypass ---
+        mainGroup.appendChild(createToggleRow("adv-toggle-face-bypass", "Face Bypass", "🎭", isFaceProtectionEnabled, () => {
+            isFaceProtectionEnabled = !isFaceProtectionEnabled; GM_setValue('ome_face_protection', isFaceProtectionEnabled); window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'face', enabled: isFaceProtectionEnabled } })); updateStatusDots();
+        }));
+
+        // --- 7. Report Protection (Parent) ---
+        mainGroup.appendChild(createToggleRow("adv-toggle-report-prot", "Report Protection", "🛡️", isReportProtectionEnabled, () => {
+            isReportProtectionEnabled = !isReportProtectionEnabled; 
+            GM_setValue('ome_report_protection', isReportProtectionEnabled);
+            window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'report', enabled: isReportProtectionEnabled } }));
+            updateStatusDots();
+            
+            // Toggle visibility of the nested sound option
+            const soundRow = document.getElementById("adv-toggle-rep-sound");
+            if (soundRow) soundRow.style.display = isReportProtectionEnabled ? "flex" : "none";
+        }));
+
+        // Report Sounds (Nested/Conditional)
+        const reportSoundRow = createToggleRow("adv-toggle-rep-sound", "Report Sounds", "🔊", isReportSoundEnabled, () => {
+            isReportSoundEnabled = !isReportSoundEnabled;
+            GM_setValue('ome_report_sound', isReportSoundEnabled);
+            updateAdvToggleVisual("adv-toggle-rep-sound", isReportSoundEnabled);
+            showToast(`Report Alerts: ${isReportSoundEnabled ? "Sound ON" : "Silent (Visual Only)"}`);
+        });
+        
+        reportSoundRow.id = "adv-toggle-rep-sound"; // ID for targeting
+
+        // --- STYLING TO MATCH IP GRABBER SUBMENU ---
+        reportSoundRow.style.display = isReportProtectionEnabled ? "flex" : "none"; // Initial State
+        reportSoundRow.style.backgroundColor = "rgba(0,0,0,0.2)";                   // MATCHES IP GRABBER
+        reportSoundRow.style.paddingLeft = "30px";                                  // MATCHES IP GRABBER
+        reportSoundRow.style.borderBottom = "1px solid rgba(255,255,255,0.05)";     // MATCHES IP GRABBER
+        
+        mainGroup.appendChild(reportSoundRow);
+        content.appendChild(mainGroup);
+
+
+        // 3. OTHER (BETA) GROUP
+        const betaHeader = document.createElement("div"); betaHeader.innerHTML = sectionTitle("Other (beta)");
+        content.appendChild(betaHeader);
+
+        const betaGroup = createGroup();
+
+        // --- 1. Raw Audio ---
+        betaGroup.appendChild(createToggleRow("adv-toggle-raw-audio", "Raw Audio (beta)", "🎤", FAKE_CONFIG.rawAudio, () => {
             FAKE_CONFIG.rawAudio = !FAKE_CONFIG.rawAudio;
             GM_setValue('ome_raw_audio', FAKE_CONFIG.rawAudio);
             updateStatusDots();
             showToast("Reload required to apply");
         }));
 
-        coreGroup.appendChild(createToggleRow("adv-toggle-face-bypass", "Face Bypass", "🎭", isFaceProtectionEnabled, () => {
-            isFaceProtectionEnabled = !isFaceProtectionEnabled; GM_setValue('ome_face_protection', isFaceProtectionEnabled); window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'face', enabled: isFaceProtectionEnabled } })); updateStatusDots();
-        }));
-        coreGroup.appendChild(createToggleRow("adv-toggle-report-prot", "Report Protection", "🛡️", isReportProtectionEnabled, () => {
-            isReportProtectionEnabled = !isReportProtectionEnabled; GM_setValue('ome_report_protection', isReportProtectionEnabled); window.dispatchEvent(new CustomEvent('ome-bypass-config', { detail: { type: 'report', enabled: isReportProtectionEnabled } })); updateStatusDots();
-        }));
-        coreGroup.appendChild(createToggleRow("adv-toggle-fingerprint", "Fingerprint Spoofing", "🧬", isFingerprintSpoofingEnabled, () => {
-            isFingerprintSpoofingEnabled = !isFingerprintSpoofingEnabled;
-            GM_setValue('ome_fingerprint_spoofing', isFingerprintSpoofingEnabled);
-            updateStatusDots();
-            showToast("Reload required to apply");
-        }));
-        coreGroup.appendChild(createToggleRow("adv-toggle-antiban", "Jitter Bot", "🛡️", FAKE_CONFIG.antiBanFrames, () => {
+        // --- 2. Jitter Bot ---
+        betaGroup.appendChild(createToggleRow("adv-toggle-antiban", "Jitter Bot (beta)", "🛡️", FAKE_CONFIG.antiBanFrames, () => {
             FAKE_CONFIG.antiBanFrames = !FAKE_CONFIG.antiBanFrames;
             GM_setValue('ome_antiban_frames', FAKE_CONFIG.antiBanFrames);
             updateStatusDots();
         }));
-        coreGroup.appendChild(createToggleRow("adv-toggle-antibot", "Anti-Bot Bypass (Variance)", "🤖", isAntiBotEnabled, () => {
-            isAntiBotEnabled = !isAntiBotEnabled;
-            GM_setValue('ome_anti_bot', isAntiBotEnabled);
-            updateStatusDots();
-            showToast("Reload required to apply");
-        }));
-        coreGroup.appendChild(createToggleRow("adv-toggle-force-relay", "Request Relay (Hide IP)", "🖧", FAKE_CONFIG.forceRelay, () => {
-            FAKE_CONFIG.forceRelay = !FAKE_CONFIG.forceRelay;
-            GM_setValue('ome_force_relay', FAKE_CONFIG.forceRelay);
-            updateStatusDots();
-        }));
-        coreGroup.appendChild(createToggleRow("adv-toggle-udp-strict", "Connect Only to TURN servers", "⚠️", FAKE_CONFIG.udpStrict, () => {
-            FAKE_CONFIG.udpStrict = !FAKE_CONFIG.udpStrict;
-            GM_setValue('ome_udp_strict', FAKE_CONFIG.udpStrict);
-            updateStatusDots();
-            showToast(FAKE_CONFIG.udpStrict ? "Strict UDP: ON" : "Strict UDP: OFF");
-        }));
 
-        // Existing Fake Cam Toggle
-        coreGroup.appendChild(createToggleRow("adv-toggle-fake-cam", "Fake Camera", "📷", FAKE_CONFIG.enabled, () => {
+        // --- 3. Fake Camera (Parent) ---
+        betaGroup.appendChild(createToggleRow("adv-toggle-fake-cam", "Fake Camera (beta)", "📷", FAKE_CONFIG.enabled, () => {
             FAKE_CONFIG.enabled = !FAKE_CONFIG.enabled;
             GM_setValue('ome_fake_cam_enabled', FAKE_CONFIG.enabled);
             updateStatusDots();
-            // Refresh URL row visibility
+            
+            // Toggle visibility of nested items
             const urlRow = document.getElementById("fake-cam-url-row");
             if(urlRow) urlRow.style.display = FAKE_CONFIG.enabled ? "flex" : "none";
-            // Refresh Resolution row visibility
             const resRow = document.getElementById("fake-cam-res-row");
             if(resRow) resRow.style.display = FAKE_CONFIG.enabled ? "flex" : "none";
         }));
 
-        // [NEW] RESOLUTION DROPDOWN (Visible only when Fake Cam is ON)
-        const resRow = document.createElement("div");
-        resRow.id = "fake-cam-res-row";
-        Object.assign(resRow.style, {
-            display: FAKE_CONFIG.enabled ? "flex" : "none",
-            alignItems: "center", justifyContent: "space-between",
-            padding: "10px", background: "rgba(0,0,0,0.3)", borderBottom: "1px solid #333"
-        });
-
-        const resLabel = document.createElement("span");
-        resLabel.innerText = "Camera Resolution:";
-        resLabel.style.fontSize = "12px"; resLabel.style.color = "#ccc";
-
-        const resSelect = document.createElement("select");
-        Object.assign(resSelect.style, {
-            padding: "4px", borderRadius: "4px", background: "#222", color: "#fff", border: "1px solid #555"
-        });
-
-        const resolutions = ["640x480", "1280x720", "1920x1080", "320x240"];
-        resolutions.forEach(res => {
-            const opt = document.createElement("option");
-            opt.value = res;
-            opt.innerText = res;
-            if (`${FAKE_CONFIG.canvasSize.width}x${FAKE_CONFIG.canvasSize.height}` === res) opt.selected = true;
-            resSelect.appendChild(opt);
-        });
-
-        resSelect.onchange = (e) => {
-            const val = e.target.value;
-            const [w, h] = val.split('x').map(Number);
-            FAKE_CONFIG.canvasSize = { width: w, height: h };
-            GM_setValue('ome_cam_resolution', val);
-            // Update the fake frame canvas size immediately if it exists
-            if (window.fakeFrameCanvas) {
-                window.fakeFrameCanvas.width = w;
-                window.fakeFrameCanvas.height = h;
-            }
-            showToast(`Resolution set to ${val} (Reload to apply)`);
-        };
-
-        resRow.appendChild(resLabel);
-        resRow.appendChild(resSelect);
-        coreGroup.appendChild(resRow);
-
-        // [NEW] THUMBNAIL HISTORY TOGGLE
-        coreGroup.appendChild(createToggleRow("adv-toggle-thumbs", "Thumbnail History", "🖼️", isThumbnailCaptureEnabled, () => {
-            isThumbnailCaptureEnabled = !isThumbnailCaptureEnabled;
-            GM_setValue('ome_thumb_capture', isThumbnailCaptureEnabled);
-            // FIX: Add visual update
-            updateAdvToggleVisual("adv-toggle-thumbs", isThumbnailCaptureEnabled);
-            showToast(`Thumbnail Capture: ${isThumbnailCaptureEnabled ? "ON" : "OFF"}`);
-        }));
-
-        // [NEW] REPORT SOUND TOGGLE
-        coreGroup.appendChild(createToggleRow("adv-toggle-rep-sound", "Report Sounds", "🔊", isReportSoundEnabled, () => {
-            isReportSoundEnabled = !isReportSoundEnabled;
-            GM_setValue('ome_report_sound', isReportSoundEnabled);
-            // FIX: Add visual update
-            updateAdvToggleVisual("adv-toggle-rep-sound", isReportSoundEnabled);
-            showToast(`Report Alerts: ${isReportSoundEnabled ? "Sound ON" : "Silent (Visual Only)"}`);
-        }));
-
-        // URL Input Field
+        // Fake Cam: URL Input
         const urlRow = document.createElement("div");
         urlRow.id = "fake-cam-url-row";
         Object.assign(urlRow.style, {
@@ -3845,9 +3949,48 @@
         };
         urlRow.appendChild(urlLabel);
         urlRow.appendChild(urlInput);
-        coreGroup.appendChild(urlRow);
+        betaGroup.appendChild(urlRow);
 
-        content.appendChild(coreGroup);
+        // Fake Cam: Resolution Select
+        const resRow = document.createElement("div");
+        resRow.id = "fake-cam-res-row";
+        Object.assign(resRow.style, {
+            display: FAKE_CONFIG.enabled ? "flex" : "none",
+            alignItems: "center", justifyContent: "space-between",
+            padding: "10px", background: "rgba(0,0,0,0.3)", borderBottom: "1px solid #333"
+        });
+        const resLabel = document.createElement("span");
+        resLabel.innerText = "Camera Resolution:";
+        resLabel.style.fontSize = "12px"; resLabel.style.color = "#ccc";
+        const resSelect = document.createElement("select");
+        Object.assign(resSelect.style, {
+            padding: "4px", borderRadius: "4px", background: "#222", color: "#fff", border: "1px solid #555"
+        });
+        const resolutions = ["640x480", "1280x720", "1920x1080", "320x240"];
+        resolutions.forEach(res => {
+            const opt = document.createElement("option");
+            opt.value = res;
+            opt.innerText = res;
+            if (`${FAKE_CONFIG.canvasSize.width}x${FAKE_CONFIG.canvasSize.height}` === res) opt.selected = true;
+            resSelect.appendChild(opt);
+        });
+        resSelect.onchange = (e) => {
+            const val = e.target.value;
+            const [w, h] = val.split('x').map(Number);
+            FAKE_CONFIG.canvasSize = { width: w, height: h };
+            GM_setValue('ome_cam_resolution', val);
+            if (window.fakeFrameCanvas) {
+                window.fakeFrameCanvas.width = w;
+                window.fakeFrameCanvas.height = h;
+            }
+            showToast(`Resolution set to ${val} (Reload to apply)`);
+        };
+        resRow.appendChild(resLabel);
+        resRow.appendChild(resSelect);
+        betaGroup.appendChild(resRow);
+
+        content.appendChild(betaGroup);
+
 
         // 4. DEVICE CONFIG GROUP
         const devHeader = document.createElement("div"); devHeader.innerHTML = sectionTitle("Device Configurations");
@@ -3855,47 +3998,41 @@
 
         const devGroup = createGroup();
 
-        // Spoof Toggle
+        // SPOOF TOGGLE (Warning on OFF)
         const spoofToggle = createToggleRow("adv-toggle-device-spoof", "Spoof Device Names", "🏷️", FAKE_CONFIG.spoofDeviceNames, () => {
+            if (FAKE_CONFIG.spoofDeviceNames) {
+                if (!confirm("⚠️ DISABLE SPOOFING?\n\nReal device labels will be visible to the site.\n\nDisable anyway?")) return;
+            }
             const newState = !FAKE_CONFIG.spoofDeviceNames;
             FAKE_CONFIG.spoofDeviceNames = newState;
             GM_setValue('ome_spoof_devices', newState);
 
-            // [UPDATED] SYNC LOGIC: Force "One Mode" settings to match the Spoof toggle
+            // Sync One Mode
             FAKE_CONFIG.oneCameraMode = newState;
             FAKE_CONFIG.oneInputMode = newState;
             FAKE_CONFIG.oneOutputMode = newState;
-
-            // Save the synced state
             GM_setValue('ome_one_cam_mode', newState);
             GM_setValue('ome_one_input_mode', newState);
             GM_setValue('ome_one_output_mode', newState);
 
             updateStatusDots();
 
-            // Update the main list visibility
+            // Update List visibility
             const lists = document.getElementById("adv-device-lists-container");
             if(lists) {
                 lists.style.display = newState ? "block" : "none";
-
-                // Update the visual state of the sub-toggles inside the list
                 updateAdvToggleVisual("adv-toggle-one-cam", newState);
                 updateAdvToggleVisual("adv-toggle-one-mic", newState);
                 updateAdvToggleVisual("adv-toggle-one-spk", newState);
 
-                // Update text labels to reflect the new state (One vs Multi)
                 const camRow = document.getElementById("adv-toggle-one-cam");
                 if (camRow) camRow.querySelector('span:nth-child(2)').innerText = newState ? "One Camera Mode" : "Multi Camera Mode";
-
                 const micRow = document.getElementById("adv-toggle-one-mic");
                 if (micRow) micRow.querySelector('span:nth-child(2)').innerText = newState ? "One Input Mode" : "Multi Input Mode";
-
                 const spkRow = document.getElementById("adv-toggle-one-spk");
                 if (spkRow) spkRow.querySelector('span:nth-child(2)').innerText = newState ? "One Output Mode" : "Multi Output Mode";
 
-                // Show/Hide the extra input rows based on the new state
                 lists.querySelectorAll('.multi-input-row').forEach(row => {
-                    // Skip the first row (index 0) of every group, hide the rest if Mode is ON
                     const parent = row.parentElement;
                     const index = Array.from(parent.children).indexOf(row);
                     if (index > 0) row.style.display = newState ? 'none' : 'block';
@@ -3975,13 +4112,12 @@
         uiGroup.lastChild.style.borderBottom = "none";
         content.appendChild(uiGroup);
 
-        // 6. DANGER GROUP (Reset Settings moved here)
+        // 6. DANGER GROUP
         const dangerHeader = document.createElement("div"); dangerHeader.innerHTML = sectionTitle("Danger Zone");
         content.appendChild(dangerHeader);
 
         const dangerGroup = createGroup();
 
-        // [MOVED HERE] Reset Settings
         const resetBtn = document.createElement("div");
         Object.assign(resetBtn.style, rowStyle);
         rowHover(resetBtn);
@@ -3996,7 +4132,6 @@
         `;
         dangerGroup.appendChild(resetBtn);
 
-        // Reset All Data
         dangerGroup.appendChild(createOptBtn("Reset All Data", "⚠️", "#FF4444", clearAllData, "Wipe everything"));
         dangerGroup.lastChild.style.borderBottom = "none";
         content.appendChild(dangerGroup);
@@ -5376,11 +5511,8 @@
 
                     showReportPopup();
 
-                    // [UPDATED] REDIRECT TO SAFE PLACE (Google)
-                    // Instead of skipping, we leave immediately to protect the session
-                    setTimeout(() => {
-                        window.location.href = "https://www.google.com";
-                    }, 200);
+                    // Google Redirect REMOVED.
+                    // You will just see the popup and hear the sound now.
 
                 } else if (e.detail.type === 'ws-ready') {
                     isWsProtectionActive = true;
