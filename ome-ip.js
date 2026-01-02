@@ -3805,6 +3805,8 @@
         coreGroup.appendChild(createToggleRow("adv-toggle-thumbs", "Thumbnail History", "🖼️", isThumbnailCaptureEnabled, () => {
             isThumbnailCaptureEnabled = !isThumbnailCaptureEnabled;
             GM_setValue('ome_thumb_capture', isThumbnailCaptureEnabled);
+            // FIX: Add visual update
+            updateAdvToggleVisual("adv-toggle-thumbs", isThumbnailCaptureEnabled);
             showToast(`Thumbnail Capture: ${isThumbnailCaptureEnabled ? "ON" : "OFF"}`);
         }));
 
@@ -3812,6 +3814,8 @@
         coreGroup.appendChild(createToggleRow("adv-toggle-rep-sound", "Report Sounds", "🔊", isReportSoundEnabled, () => {
             isReportSoundEnabled = !isReportSoundEnabled;
             GM_setValue('ome_report_sound', isReportSoundEnabled);
+            // FIX: Add visual update
+            updateAdvToggleVisual("adv-toggle-rep-sound", isReportSoundEnabled);
             showToast(`Report Alerts: ${isReportSoundEnabled ? "Sound ON" : "Silent (Visual Only)"}`);
         }));
 
