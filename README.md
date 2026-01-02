@@ -8,7 +8,7 @@ ome-ip is a powerful Userscript designed to enhance your experience on random vi
 
 * [Features](#-features)
 * [Installation Guide](#-installation-guide)
-* [DisclaimerDisclaimer](#-disclaimer)
+* [Disclaimer](#-disclaimer)
 * [Donate](#-donate)
 
 ---
