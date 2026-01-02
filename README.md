@@ -7,8 +7,8 @@ ome-ip is a powerful Userscript designed to enhance your experience on random vi
 <img width="1837" height="2261" alt="ome-ip3" src="https://github.com/user-attachments/assets/663dc567-4c16-4d7f-9cb2-c7a44eb1a114" />
 
 * [Features](#-features)
-* [Installation Guide](https://github.com/EolnMsuk/ome-ip#%EF%B8%8F-installation-guide)
-* [Donate](https://github.com/EolnMsuk/ome-ip#-donate)
+* [Installation Guide](#-installation-guide)
+* [Donate](#-donate)
 
 ---
 
