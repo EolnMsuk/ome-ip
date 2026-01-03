@@ -14,7 +14,7 @@ ome-ip is a powerful Userscript designed to enhance your experience on random vi
 
 * **IP Grabbing & Geolocation:** Instantly displays your partner's IP address, Country, Region, City, and ISP.
 * **VPN/Relay Detection:** Automatically detects and warns you if a partner is using a Proxy or Turn Server (Relay IP).
-* **Report Protection:** Intercepts WebSocket signals to block "Report" or "Ban" attempts from reaching the server. Includes an audio alert ("Report Detected") and auto-redirects to safety.
+* **Report Protection:** Intercepts WebSocket signals to block "Report" or "Ban" attempts from reaching the server. Includes an audio alert ("Report Detected").
 * **Face Detection Bypass:** Tricks site algorithms into thinking a real face is visible, preventing "Black Screen" bans.
 * **Anti-Bot & Fingerprint Spoofing:**
 * Spoofs Navigator properties (UserAgent, Hardware Concurrency, Device Memory).
