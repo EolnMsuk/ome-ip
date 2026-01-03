@@ -14,7 +14,6 @@
 // @match        https://thundr.com/*
 // @match        https://umingle.com/*
 // @match        https://webcamtests.com/*
-// @match        https://www.google.com/search?q=umingle*
 // @connect      ipwho.is
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -25,21 +24,6 @@
     
 (function() {
     'use strict';
-
-    // --- REPORT REDIRECT CHECKER (Non-Blocking Fix) ---
-    function checkReportRedirect() {
-        if (GM_getValue('ome_was_reported', false)) {
-            GM_setValue('ome_was_reported', false); // Reset flag
-            
-            // WRAP IN SETTIMEOUT: 
-            // This ensures the rest of your script (Stealth Modules) runs 
-            // completely BEFORE the alert pauses everything.
-            setTimeout(() => {
-                alert("⚠️ REPORT DETECTED! ⚠️\n\nYou were redirected here for safety.");
-            }, 500); // 500ms delay to be safe
-        }
-    }
-    checkReportRedirect();
 
     // --- 1. CSS INJECTION ---
     const GLOBAL_CSS = `
@@ -632,27 +616,52 @@
         if (window.pressSkip) window.pressSkip = wrap(window.pressSkip, 'pressSkip');
     }
 
-    // --- [NEW] PORTED uHELPER BYPASSES ---
+    // --- PORTED uHELPER FACE BYPASS (Smart Lazy-Load) ---
     function initializeGlobalFaceBypasses() {
-        // Helper to get a fake image data URL (white/static canvas)
+        const FAKE_FACE_URL = "https://i.imgur.com/qVF5AOb.png";
+        const faceImage = new Image();
+        let isFaceLoaded = false;
+
+        faceImage.crossOrigin = "anonymous"; 
+        faceImage.onload = () => { isFaceLoaded = true; };
+
+        // Only load the image if/when the feature is turned ON
+        const loadFaceIfNeeded = () => {
+            if (!faceImage.src && (isFaceProtectionEnabled || window.isFaceProtectionEnabled)) {
+                console.log("[Ome-IP] 🎭 Loading Face Image...");
+                faceImage.src = FAKE_FACE_URL;
+            }
+        };
+
+        // Check at startup
+        loadFaceIfNeeded();
+
+        // Listen for toggle changes to load it later if needed
+        window.addEventListener('ome-bypass-config', (e) => {
+            if (e.detail.type === 'face' && e.detail.enabled) loadFaceIfNeeded();
+        });
+
         const getFakeFrameData = () => {
             const canvas = document.createElement('canvas');
             canvas.width = 640; canvas.height = 480;
             const ctx = canvas.getContext('2d');
-            // Draw simple noise or black to pass "not empty" checks
-            ctx.fillStyle = '#111';
-            ctx.fillRect(0, 0, 640, 480);
+
+            if (isFaceLoaded) {
+                ctx.drawImage(faceImage, 0, 0, 640, 480);
+            } else {
+                // Fallback (Dark Grey) if not loaded yet
+                ctx.fillStyle = '#222';
+                ctx.fillRect(0, 0, 640, 480);
+            }
             return canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
         };
 
-        // 1. Hook Global Snapshot Functions (uHelper Logic)
-        // We overwrite these to ensure they return safe data if the site calls them directly
         const originalCapture = window.captureFrameToBase64;
         Object.defineProperty(window, 'captureFrameToBase64', {
             get: () => {
                 return isFaceProtectionEnabled ? () => getFakeFrameData() : originalCapture;
             },
-            set: (val) => { /* Ignore site attempts to overwrite */ }
+            set: (val) => { }
         });
 
         const originalMakeCanvas = window.makeLocalCanvas;
@@ -661,44 +670,40 @@
                 return isFaceProtectionEnabled ? () => {
                     const c = document.createElement('canvas');
                     c.width = 640; c.height = 480;
+                    if (isFaceLoaded) {
+                        c.getContext('2d').drawImage(faceImage, 0, 0, 640, 480);
+                    } else {
+                        c.getContext('2d').fillStyle = "#222";
+                        c.getContext('2d').fillRect(0, 0, 640, 480);
+                    }
                     return c;
                 } : originalMakeCanvas;
             },
             set: (val) => { }
         });
 
-        // 2. Hook Eval to stop FaceOverlay (uHelper Logic)
         const originalEval = window.eval;
         window.eval = function(str) {
             if (isFaceProtectionEnabled && typeof str === 'string' && str.includes('FaceOverlay')) {
-                console.log("[Ome-IP] 🛡️ Blocked FaceOverlay via Eval");
                 return null;
             }
             return originalEval.apply(this, arguments);
         };
 
-        // 3. Penalty Proxy (uHelper Logic)
-        // Prevents the site from setting any property like "isBlocked" to true
-        // We only apply this if it hasn't been applied yet to avoid recursion
         if (!window.isPenaltyProxyActive) {
             const penaltyHandler = {
                 set: function(target, prop, value) {
                     if (isFaceProtectionEnabled && value === true && typeof prop === 'string' && prop.toLowerCase().includes('block')) {
-                        console.log(`[Ome-IP] 🛡️ Prevented Penalty Flag: ${prop}`);
-                        return true; // Lie and say it succeeded
+                        return true; 
                     }
                     target[prop] = value;
                     return true;
                 }
             };
-            // Note: We can't easily wrap 'window' in a Proxy, but we can catch properties defined on it
-            // if the site uses a specific global object for state.
-            // uHelper's implementation of 'window.Proxy = ...' is risky but effective for some frameworks.
-            // A safer approach for OmeTV/Umingle is usually sufficient with the Worker hook you already have.
             window.isPenaltyProxyActive = true;
         }
 
-        console.log("[Ome-IP] Global Face Bypasses Initialized");
+        console.log("[Ome-IP] Global Face Bypasses Initialized (Smart Load)");
     }
 
 
@@ -916,23 +921,16 @@
                     }
                 }
 
-                // SCENARIO 2: Real Camera + Anti-Ban Enabled (NEW LOGIC)
-                // If Fake Cam is OFF but AntiBan is ON, process the real webcam to add jitter.
+                // SCENARIO 2: Real Camera + Anti-Ban Enabled
                 else if (constraints && constraints.video && FAKE_CONFIG.antiBanFrames) {
                     console.log("[Ome-IP] Returning Real Webcam with Anti-Ban Jitter");
                     try {
-                        // 1. Get Real Webcam
                         const realStream = await originalGUM(constraints);
-
-                        // 2. Pass to processor as 'false' (isFakeSource)
                         const processedStream = await createProcessedStream(realStream, false);
-
-                        // 3. Ensure Audio is attached (if requested)
                         const audioTracks = realStream.getAudioTracks();
                         if (audioTracks.length > 0) {
                             audioTracks.forEach(track => processedStream.addTrack(track));
                         }
-
                         return processedStream;
                     } catch (err) {
                         console.error("[Ome-IP] AntiBan processing failed, falling back to raw", err);
@@ -940,8 +938,37 @@
                     }
                 }
 
-                // SCENARIO 3: Standard (Raw Stream)
-                return originalGUM(constraints);
+                // SCENARIO 3: Standard (Raw Stream) -> NOW WITH LABEL SPOOFING
+                // This block runs when Fake Cam and Jitter are OFF.
+                const stream = await originalGUM(constraints);
+
+                if (FAKE_CONFIG.spoofDeviceNames) {
+                    stream.getTracks().forEach(track => {
+                        // 1. Determine which label to use
+                        let newLabel = track.label;
+                        
+                        if (track.kind === 'video') {
+                            // Use the first label from your spoof list, or a generic fallback
+                            newLabel = FAKE_CONFIG.videoLabels[0] || "Integrated Camera";
+                        } else if (track.kind === 'audio') {
+                            newLabel = FAKE_CONFIG.audioInputLabels[0] || "Default - Microphone";
+                        }
+
+                        // 2. Overwrite the read-only 'label' property
+                        // We use Object.defineProperty because simply doing track.label = "x" won't work.
+                        try {
+                            Object.defineProperty(track, 'label', {
+                                get: () => newLabel,
+                                configurable: true
+                            });
+                            // console.log(`[Ome-IP] Spoofed Track Label: ${newLabel}`);
+                        } catch (e) { 
+                            console.error("[Ome-IP] Failed to spoof track label", e); 
+                        }
+                    });
+                }
+                
+                return stream;
             };
         } catch (e) { console.log("GUM Hook Failed"); }
     }
@@ -5529,10 +5556,6 @@
                     if (isReportSoundEnabled) {
                         triggerReportSound();
                     }
-
-                    // 3. IMMEDIATE REDIRECT (Do not wait)
-                    // Using 'replace' prevents the bad page from getting stuck in your history
-                    window.location.replace("https://www.google.com/search?q=umingle.com");
                     
                     // (Code below this point usually won't run because the browser is already leaving)
                     showReportPopup();
