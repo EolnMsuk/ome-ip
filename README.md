@@ -128,5 +128,5 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ## 💰 Donate
 
 * Author: `https://github.com/EolnMsuk`
-* CashApp: `cash.app/$eolnmsuk`
+* CashApp: `https://cash.app/$eolnmsuk`
 * BTC: `bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks`
