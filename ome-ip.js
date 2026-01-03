@@ -14,6 +14,7 @@
 // @match        https://thundr.com/*
 // @match        https://umingle.com/*
 // @match        https://webcamtests.com/*
+// @match        https://www.google.com/search?q=umingle*
 // @connect      ipwho.is
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -21,9 +22,24 @@
 // @grant        unsafeWindow
 // @run-at       document-start
 // ==/UserScript==
-
+    
 (function() {
     'use strict';
+
+    // --- REPORT REDIRECT CHECKER (Non-Blocking Fix) ---
+    function checkReportRedirect() {
+        if (GM_getValue('ome_was_reported', false)) {
+            GM_setValue('ome_was_reported', false); // Reset flag
+            
+            // WRAP IN SETTIMEOUT: 
+            // This ensures the rest of your script (Stealth Modules) runs 
+            // completely BEFORE the alert pauses everything.
+            setTimeout(() => {
+                alert("⚠️ REPORT DETECTED! ⚠️\n\nYou were redirected here for safety.");
+            }, 500); // 500ms delay to be safe
+        }
+    }
+    checkReportRedirect();
 
     // --- 1. CSS INJECTION ---
     const GLOBAL_CSS = `
@@ -4769,8 +4785,9 @@
         const noteHtml = noteText ? `<div class="ome-yellow-note" style="margin: 6px 0; padding: 5px; background: rgba(255,255,0,0.3); border-left: 3px solid yellow; color: #fff; font-size: 13px; text-shadow: none !important; width: fit-content; max-width: 100%; word-wrap: break-word;">${safe(noteText)}</div>` : "";
 
         // [CHANGED] Logic for Thumbnail - Added ID, removed inline onclick
+        // Added margin-bottom to separate it from the IP box below it
         const thumbUrl = userData ? userData.thumb : null;
-        const thumbHtml = thumbUrl ? `<img src="${thumbUrl}" id="ome-main-thumb" style="display:block; margin: 10px 0 5px 0; border:1px solid #555; border-radius:4px; width:120px; height:auto; cursor:pointer;" title="Click to Open Saved Screenshots" alt="User Thumbnail">` : "";
+        const thumbHtml = thumbUrl ? `<img src="${thumbUrl}" id="ome-main-thumb" style="display:block; margin: 5px 0 10px 0; border:1px solid #555; border-radius:4px; width:120px; height:auto; cursor:pointer;" title="Click to Open Saved Screenshots" alt="User Thumbnail">` : "";
 
         const copyBtnStyle = isWindowTransparent ? "border-radius: 4px; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: rgba(255,255,255,0.8); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 11px; padding: 2px 6px; font-weight: bold;" : "border-radius: 4px; border: 1px solid #777; background: #000; color: #eee; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 11px; padding: 2px 6px; font-weight: bold;";
         const copyBtn = `<div class="ome-no-select ip-copy-btn" style="${copyBtnStyle}" title="Copy IP" onclick="window.navigator.clipboard.writeText('${ip}').then(() => { const win=document.getElementById('ip-log-window'); if(!win)return; let t=win.querySelector('.ome-toast'); if(!t){t=document.createElement('div'); t.className='ome-toast ome-no-select'; win.appendChild(t);} t.innerText='Copied IP to clipboard!'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1500); })">Copy</div>`;
@@ -4798,11 +4815,11 @@
                         Seen ${count} ${count===1?"time":"times"} <span style="color:#888">  •  <span id='ip-call-timer'>${formatTime(callSeconds)}</span></span>
                     </div>
 
+                    ${thumbHtml}
+
                     <div style="${ipWrapperStyle}">
                          <span title="Click to reveal" onclick="${toggleScript}" style="color:#FF9536; font-size: 16px; ${blurStyle}">${safe(ip)}</span> ${copyBtn}
                     </div>
-
-                    ${thumbHtml}
                 </div>`;
         } else if (apiData) {
             const countryCode = apiData.country_code ? apiData.country_code.toLowerCase() : "un";
@@ -4833,11 +4850,11 @@
                         Seen ${count} ${count===1?"time":"times"} <span style="color:#888">  •  <span id='ip-call-timer'>${formatTime(callSeconds)}</span></span>
                     </div>
 
+                    ${thumbHtml}
+
                      <div style="${ipWrapperStyle}">
                          <span title="Click to reveal" onclick="${toggleScript}" style="color:#FF9536; font-size: 16px; ${blurStyle}">${safe(ip)}</span> ${copyBtn}
                     </div>
-
-                    ${thumbHtml}
                 </div>`;
         } else {
             html = `<div style="${fontStyle}" class="${outlineClass}"> <div style="font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px;">⏳ Fetching...</div> <div style="margin-top: 4px;"> <span title="Click to reveal" onclick="${toggleScript}" style="color:#FF9536; font-size: 18px; ${blurStyle}">${ip||""}</span> </div> </div>`;
@@ -5495,24 +5512,30 @@
                 if (document.visibilityState === 'hidden') forceSave();
             });
 
-            // Listen for Injected Events (Communication from Main World)
+            // --- MODIFIED EVENT LISTENER ---
             window.addEventListener('ome-bypass-event', (e) => {
                 if (e.detail.type === 'face') {
                     facesDetectedCount++;
                     updateStatusDots();
-                } else if (e.detail.type === 'report') {
+                } 
+                else if (e.detail.type === 'report') {
                     reportsBlockedCount++;
                     updateStatusDots();
 
-                    // [UPDATED] Check Sound Setting
+                    // 1. Set the flag so the NEXT page knows why we are there
+                    GM_setValue('ome_was_reported', true);
+
+                    // 2. Play sound if enabled (optional, might cut off due to redirect)
                     if (isReportSoundEnabled) {
                         triggerReportSound();
                     }
 
+                    // 3. IMMEDIATE REDIRECT (Do not wait)
+                    // Using 'replace' prevents the bad page from getting stuck in your history
+                    window.location.replace("https://www.google.com/search?q=umingle.com");
+                    
+                    // (Code below this point usually won't run because the browser is already leaving)
                     showReportPopup();
-
-                    // Google Redirect REMOVED.
-                    // You will just see the popup and hear the sound now.
 
                 } else if (e.detail.type === 'ws-ready') {
                     isWsProtectionActive = true;
