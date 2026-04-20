@@ -127,6 +127,6 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 🫡 Thanks
 
-Author: [EolnMsuk](https://github.com/EolnMsuk)
+Author:  [EolnMsuk](https://github.com/EolnMsuk)
 
 Donate: [BTC](https://www.blockchain.com/explorer/addresses/btc/bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks) | [Venmo](https://venmo.com/user/eolnmsuk)
