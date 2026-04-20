@@ -121,12 +121,7 @@ To ensure all features (especially IP Grabbing and Fake Camera) work correctly, 
 
 *This tool is for educational purposes and research into WebRTC logic and browser security. The developer is not responsible for bans or account suspensions resulting from the use of this tool. Use responsibly.*
 
-## 📄 License
+## 👨‍💻 Developer
 
-Distributed under the MIT License. See `LICENSE` for more information.
-
-## 🫡 Thanks
-
-Author: [EolnMsuk](https://github.com/EolnMsuk)
-
-Donate: [BTC](https://www.blockchain.com/explorer/addresses/btc/bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks) | [Venmo](https://venmo.com/user/eolnmsuk)
+Created by [EolnMsuk](https://github.com/EolnMsuk) → [AntiDarkSword](https://github.com/EolnMsuk/AntiDarkSword/)  
+Donate: [BTC](https://www.blockchain.com/explorer/addresses/btc/bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks) or [Venmo](https://venmo.com/user/eolnmsuk)
