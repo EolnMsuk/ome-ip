@@ -125,8 +125,8 @@ To ensure all features (especially IP Grabbing and Fake Camera) work correctly, 
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
-## 💰 Donate
+## 🫡 Thanks
 
-Created by [EolnMsuk](https://github.com/EolnMsuk)
+Author: [EolnMsuk](https://github.com/EolnMsuk)
 
-Support me: [BTC](https://www.blockchain.com/explorer/addresses/btc/bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks) / [Venmo](https://venmo.com/user/eolnmsuk)
+Donate: [BTC](https://www.blockchain.com/explorer/addresses/btc/bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks) / [Venmo](https://venmo.com/user/eolnmsuk)
