@@ -129,4 +129,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 Created by [EolnMsuk](https://github.com/EolnMsuk)
 
-Donate: [Venmo](https://venmo.com/user/eolnmsuk) or [BTC](https://www.blockchain.com/explorer/addresses/btc/bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks)
+Support me: [BTC](https://www.blockchain.com/explorer/addresses/btc/bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks) / [Venmo](https://venmo.com/user/eolnmsuk)
