@@ -121,6 +121,8 @@ To ensure all features (especially IP Grabbing and Fake Camera) work correctly, 
 
 *This tool is for educational purposes and research into WebRTC logic and browser security. The developer is not responsible for bans or account suspensions resulting from the use of this tool. Use responsibly.*
 
+---
+
 ## 👨‍💻 Developer
 
 Created by [EolnMsuk](https://github.com/EolnMsuk) → [AntiDarkSword](https://github.com/EolnMsuk/AntiDarkSword/)  
