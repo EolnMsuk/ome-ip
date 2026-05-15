@@ -126,4 +126,4 @@ To ensure all features (especially IP Grabbing and Fake Camera) work correctly, 
 ## 👨‍💻 Developer
 
 Created by [EolnMsuk](https://github.com/EolnMsuk) → [AntiDarkSword](https://github.com/EolnMsuk/AntiDarkSword/)  
-Donate: [BTC](https://www.blockchain.com/explorer/addresses/btc/bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks) or [Venmo](https://venmo.com/user/eolnmsuk)
+Donate: [BTC](https://www.blockchain.com/explorer/addresses/btc/bc1qm06lzkdfule3f7flf4u70xvjrp5n74lzxnnfks) or [Venmo](https://venmo.com/user/RustOnRails)
